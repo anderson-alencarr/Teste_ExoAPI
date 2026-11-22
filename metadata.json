@@ -1,0 +1,6 @@
+{
+  "name": "ExoApi Workbench",
+  "description": "Bancada interativa para desenvolvimento e teste da API REST ExoApi (Projetos CRUD), com banco SQL pré-populado e código C# (.NET) e SSMS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
