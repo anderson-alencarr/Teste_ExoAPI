@@ -22,7 +22,7 @@ export const EXO_FILE_TEMPLATES: ExoFileTemplate[] = [
     folder: 'Banco de Dados (SSMS)',
     fileName: 'cria-db.sql',
     language: 'sql',
-    role: 'Script SQL Server para criar o banco ExoApi, a tabela Projetos e os registros iniciais.',
+    role: 'Script SQL Server para criar o banco ExoApi e as tabelas Projetos e Usuarios com os registros iniciais.',
     getCode: () => CRIA_DB_SQL,
   },
   {
@@ -32,7 +32,8 @@ export const EXO_FILE_TEMPLATES: ExoFileTemplate[] = [
     fileName: 'ExoContext.cs',
     language: 'csharp',
     role: 'Cuida das tratativas de conexão com o banco de dados SQL Server via Entity Framework Core.',
-    getCode: () => `using Exo.WebApi.Models;
+    hasStageToggle: true,
+    getCode: (stage) => `using Exo.WebApi.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Data.SqlClient;
 using Microsoft.Data.SqlClient;
@@ -66,7 +67,11 @@ namespace Exo.WebApi.Contexts
             }
         }
 
-        public DbSet<Projeto> Projetos { get; set; }
+        public DbSet<Projeto> Projetos { get; set; }${
+          stage === 'etapa2'
+            ? '\n        public DbSet<Usuario> Usuarios { get; set; }'
+            : ''
+        }
     }
 }
 `,
@@ -96,12 +101,30 @@ namespace Exo.WebApi.Models
 `,
   },
   {
+    id: 'usuario-model',
+    path: 'Models/Usuario.cs',
+    folder: 'Models',
+    fileName: 'Usuario.cs',
+    language: 'csharp',
+    role: 'Modelo do sistema contendo os atributos Id, Email e Senha da entidade Usuario.',
+    getCode: () => `namespace Exo.WebApi.Models
+{
+    public class Usuario
+    {
+        public int Id { get; set; }
+        public string Email { get; set; }
+        public string Senha { get; set; }
+    }
+}
+`,
+  },
+  {
     id: 'projeto-repository',
     path: 'Repositories/ProjetoRepository.cs',
     folder: 'Repositories',
     fileName: 'ProjetoRepository.cs',
     language: 'csharp',
-    role: 'Camada Repository responsável direta pela manipulação dos dados no banco via ExoContext.',
+    role: 'Camada Repository responsável direta pela manipulação dos projetos no banco via ExoContext.',
     hasStageToggle: true,
     getCode: (stage) =>
       stage === 'etapa1'
@@ -186,6 +209,80 @@ namespace Exo.WebApi.Repositories
             if (projetoBuscado != null)
             {
                 _context.Projetos.Remove(projetoBuscado);
+                _context.SaveChanges();
+            }
+        }
+    }
+}
+`,
+  },
+  {
+    id: 'usuario-repository',
+    path: 'Repositories/UsuarioRepository.cs',
+    folder: 'Repositories',
+    fileName: 'UsuarioRepository.cs',
+    language: 'csharp',
+    role: 'Camada Repository responsável pelas operações CRUD e método Login() da entidade Usuario.',
+    getCode: () => `using Exo.WebApi.Contexts;
+using Exo.WebApi.Models;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Exo.WebApi.Repositories
+{
+    public class UsuarioRepository
+    {
+        private readonly ExoContext _context;
+
+        public UsuarioRepository(ExoContext context)
+        {
+            _context = context;
+        }
+
+        public Usuario Login(string email, string senha)
+        {
+            return _context.Usuarios.FirstOrDefault(
+                u => u.Email == email && u.Senha == senha
+            );
+        }
+
+        public List<Usuario> Listar()
+        {
+            return _context.Usuarios.ToList();
+        }
+
+        public void Cadastrar(Usuario usuario)
+        {
+            _context.Usuarios.Add(usuario);
+            _context.SaveChanges();
+        }
+
+        public Usuario BuscaPorId(int id)
+        {
+            return _context.Usuarios.Find(id);
+        }
+
+        public void Atualizar(int id, Usuario usuario)
+        {
+            Usuario usuarioBuscado = _context.Usuarios.Find(id);
+
+            if (usuarioBuscado != null)
+            {
+                usuarioBuscado.Email = usuario.Email;
+                usuarioBuscado.Senha = usuario.Senha;
+
+                _context.Usuarios.Update(usuarioBuscado);
+                _context.SaveChanges();
+            }
+        }
+
+        public void Deletar(int id)
+        {
+            Usuario usuarioBuscado = _context.Usuarios.Find(id);
+
+            if (usuarioBuscado != null)
+            {
+                _context.Usuarios.Remove(usuarioBuscado);
                 _context.SaveChanges();
             }
         }
@@ -303,20 +400,105 @@ namespace Exo.WebApi.Controllers
 `,
   },
   {
+    id: 'usuarios-controller',
+    path: 'Controllers/UsuariosController.cs',
+    folder: 'Controllers',
+    fileName: 'UsuariosController.cs',
+    language: 'csharp',
+    role: 'Controlador da API responsável por expor as rotas CRUD em api/usuarios.',
+    getCode: () => `using Exo.WebApi.Models;
+using Exo.WebApi.Repositories;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System;
+
+namespace Exo.WebApi.Controllers
+{
+    [Produces("application/json")]
+    [Route("api/[controller]")]
+    [ApiController]
+    public class UsuariosController : ControllerBase
+    {
+        private readonly UsuarioRepository _usuarioRepository;
+
+        public UsuariosController(UsuarioRepository usuarioRepository)
+        {
+            _usuarioRepository = usuarioRepository;
+        }
+
+        // get -> /api/usuarios
+        [HttpGet]
+        public IActionResult Listar()
+        {
+            return Ok(_usuarioRepository.Listar());
+        }
+
+        // post -> /api/usuarios
+        [HttpPost]
+        public IActionResult Cadastrar(Usuario usuario)
+        {
+            _usuarioRepository.Cadastrar(usuario);
+            return StatusCode(201);
+        }
+
+        // get -> /api/usuarios/{id}
+        [HttpGet("{id}")] // Faz a busca pelo ID.
+        public IActionResult BuscarPorId(int id)
+        {
+            Usuario usuario = _usuarioRepository.BuscaPorId(id);
+            if (usuario == null)
+            {
+                return NotFound();
+            }
+            return Ok(usuario);
+        }
+
+        // put -> /api/usuarios/{id}
+        [HttpPut("{id}")]
+        public IActionResult Atualizar(int id, Usuario usuario)
+        {
+            _usuarioRepository.Atualizar(id, usuario);
+            return StatusCode(204);
+        }
+
+        // delete -> /api/usuarios/{id}
+        [HttpDelete("{id}")]
+        public IActionResult Deletar(int id)
+        {
+            try
+            {
+                _usuarioRepository.Deletar(id);
+                return StatusCode(204);
+            }
+            catch (Exception e)
+            {
+                return BadRequest();
+            }
+        }
+    }
+}
+`,
+  },
+  {
     id: 'program-cs',
     path: 'Program.cs',
     folder: 'Raiz do Projeto',
     fileName: 'Program.cs',
     language: 'csharp',
-    role: 'Configura a injeção de dependência de ExoContext e ProjetoRepository e habilita o roteamento dos controladores.',
-    getCode: () => `using Exo.WebApi.Contexts;
+    role: 'Configura a injeção de dependência de ExoContext, ProjetoRepository e UsuarioRepository e habilita o roteamento dos controladores.',
+    hasStageToggle: true,
+    getCode: (stage) => `using Exo.WebApi.Contexts;
 using Exo.WebApi.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddScoped<ExoContext, ExoContext>();
 builder.Services.AddControllers();
-builder.Services.AddTransient<ProjetoRepository, ProjetoRepository>();
+builder.Services.AddTransient<ProjetoRepository, ProjetoRepository>();${
+      stage === 'etapa2'
+        ? '\nbuilder.Services.AddTransient<UsuarioRepository, UsuarioRepository>();'
+        : ''
+    }
 
 var app = builder.Build();
 

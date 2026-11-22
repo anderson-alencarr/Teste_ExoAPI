@@ -13,8 +13,9 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
         parentId: null,
         modified: now,
         created: now,
-        name: 'ExoApi — Projetos CRUD',
-        description: 'Coleção de testes da Web API ExoApi (SENAI Atividade 3)',
+        name: 'ExoApi — Projetos & Usuários CRUD',
+        description:
+          'Coleção completa de testes da Web API ExoApi (Projetos e Usuários)',
         scope: 'collection',
         _type: 'workspace',
       },
@@ -31,8 +32,24 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
         _type: 'environment',
       },
       {
-        _id: 'req_listar',
+        _id: 'fld_projetos',
         parentId: 'wrk_exoapi',
+        modified: now,
+        created: now,
+        name: 'Projetos',
+        _type: 'request_group',
+      },
+      {
+        _id: 'fld_usuarios',
+        parentId: 'wrk_exoapi',
+        modified: now,
+        created: now,
+        name: 'Usuarios',
+        _type: 'request_group',
+      },
+      {
+        _id: 'req_listar_projetos',
+        parentId: 'fld_projetos',
         modified: now,
         created: now,
         url: '{{ _.base_url }}/api/projetos',
@@ -45,8 +62,8 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
         _type: 'request',
       },
       {
-        _id: 'req_buscar_id',
-        parentId: 'wrk_exoapi',
+        _id: 'req_buscar_projeto_id',
+        parentId: 'fld_projetos',
         modified: now,
         created: now,
         url: '{{ _.base_url }}/api/projetos/1',
@@ -59,8 +76,8 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
         _type: 'request',
       },
       {
-        _id: 'req_cadastrar',
-        parentId: 'wrk_exoapi',
+        _id: 'req_cadastrar_projeto',
+        parentId: 'fld_projetos',
         modified: now,
         created: now,
         url: '{{ _.base_url }}/api/projetos',
@@ -84,8 +101,8 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
         _type: 'request',
       },
       {
-        _id: 'req_atualizar',
-        parentId: 'wrk_exoapi',
+        _id: 'req_atualizar_projeto',
+        parentId: 'fld_projetos',
         modified: now,
         created: now,
         url: '{{ _.base_url }}/api/projetos/1',
@@ -109,13 +126,103 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
         _type: 'request',
       },
       {
-        _id: 'req_deletar',
-        parentId: 'wrk_exoapi',
+        _id: 'req_deletar_projeto',
+        parentId: 'fld_projetos',
         modified: now,
         created: now,
         url: '{{ _.base_url }}/api/projetos/1',
         name: 'DELETE Remover Projeto',
         description: 'Remove um projeto pelo Id (Deletar)',
+        method: 'DELETE',
+        body: {},
+        parameters: [],
+        headers: [],
+        _type: 'request',
+      },
+      {
+        _id: 'req_listar_usuarios',
+        parentId: 'fld_usuarios',
+        modified: now,
+        created: now,
+        url: '{{ _.base_url }}/api/usuarios',
+        name: 'GET Listar Usuários',
+        description: 'Lista todos os usuários cadastrados (Listar)',
+        method: 'GET',
+        body: {},
+        parameters: [],
+        headers: [],
+        _type: 'request',
+      },
+      {
+        _id: 'req_buscar_usuario_id',
+        parentId: 'fld_usuarios',
+        modified: now,
+        created: now,
+        url: '{{ _.base_url }}/api/usuarios/1',
+        name: 'GET Buscar Usuário por Id',
+        description: 'Busca um usuário pelo Id (BuscarPorId)',
+        method: 'GET',
+        body: {},
+        parameters: [],
+        headers: [],
+        _type: 'request',
+      },
+      {
+        _id: 'req_cadastrar_usuario',
+        parentId: 'fld_usuarios',
+        modified: now,
+        created: now,
+        url: '{{ _.base_url }}/api/usuarios',
+        name: 'POST Cadastrar Usuário',
+        description: 'Insere um novo usuário (Cadastrar)',
+        method: 'POST',
+        body: {
+          mimeType: 'application/json',
+          text: JSON.stringify(
+            {
+              email: 'email_tres@sp.br',
+              senha: '1234',
+            },
+            null,
+            2
+          ),
+        },
+        parameters: [],
+        headers: [{ name: 'Content-Type', value: 'application/json' }],
+        _type: 'request',
+      },
+      {
+        _id: 'req_atualizar_usuario',
+        parentId: 'fld_usuarios',
+        modified: now,
+        created: now,
+        url: '{{ _.base_url }}/api/usuarios/3',
+        name: 'PUT Atualizar Usuário',
+        description: 'Atualiza um usuário pelo Id (Atualizar)',
+        method: 'PUT',
+        body: {
+          mimeType: 'application/json',
+          text: JSON.stringify(
+            {
+              email: 'email_quatro@sp.br',
+              senha: '4321',
+            },
+            null,
+            2
+          ),
+        },
+        parameters: [],
+        headers: [{ name: 'Content-Type', value: 'application/json' }],
+        _type: 'request',
+      },
+      {
+        _id: 'req_deletar_usuario',
+        parentId: 'fld_usuarios',
+        modified: now,
+        created: now,
+        url: '{{ _.base_url }}/api/usuarios/3',
+        name: 'DELETE Remover Usuário',
+        description: 'Remove um usuário pelo Id (Deletar)',
         method: 'DELETE',
         body: {},
         parameters: [],
@@ -133,9 +240,9 @@ export function buildPostmanCollectionJson(baseUrl: string): string {
 
   const collection = {
     info: {
-      name: 'ExoApi — Projetos CRUD',
+      name: 'ExoApi — Projetos & Usuários CRUD',
       description:
-        'Coleção Postman v2.1 para testar os endpoints GET, POST, PUT e DELETE de Exo.WebApi.',
+        'Coleção Postman v2.1 para testar os endpoints GET, POST, PUT e DELETE de /api/projetos e /api/usuarios.',
       schema:
         'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
     },
@@ -145,88 +252,180 @@ export function buildPostmanCollectionJson(baseUrl: string): string {
     ],
     item: [
       {
-        name: 'GET Listar Projetos',
-        request: {
-          method: 'GET',
-          header: [],
-          url: {
-            raw: '{{base_url}}/api/projetos',
-            host: ['{{base_url}}'],
-            path: ['api', 'projetos'],
-          },
-        },
-      },
-      {
-        name: 'GET Buscar Projeto por Id',
-        request: {
-          method: 'GET',
-          header: [],
-          url: {
-            raw: '{{base_url}}/api/projetos/1',
-            host: ['{{base_url}}'],
-            path: ['api', 'projetos', '1'],
-          },
-        },
-      },
-      {
-        name: 'POST Cadastrar Projeto',
-        request: {
-          method: 'POST',
-          header: [{ key: 'Content-Type', value: 'application/json' }],
-          body: {
-            mode: 'raw',
-            raw: JSON.stringify(
-              {
-                nomeDoProjeto: 'Projeto F — Plataforma Mobile',
-                area: 'Desenvolvimento Mobile',
-                status: true,
+        name: 'Projetos',
+        item: [
+          {
+            name: 'GET Listar Projetos',
+            request: {
+              method: 'GET',
+              header: [],
+              url: {
+                raw: '{{base_url}}/api/projetos',
+                host: ['{{base_url}}'],
+                path: ['api', 'projetos'],
               },
-              null,
-              2
-            ),
+            },
           },
-          url: {
-            raw: '{{base_url}}/api/projetos',
-            host: ['{{base_url}}'],
-            path: ['api', 'projetos'],
-          },
-        },
-      },
-      {
-        name: 'PUT Atualizar Projeto',
-        request: {
-          method: 'PUT',
-          header: [{ key: 'Content-Type', value: 'application/json' }],
-          body: {
-            mode: 'raw',
-            raw: JSON.stringify(
-              {
-                nomeDoProjeto: 'Projeto A — Obra Residencial Atualizada',
-                area: 'Construção Civil',
-                status: true,
+          {
+            name: 'GET Buscar Projeto por Id',
+            request: {
+              method: 'GET',
+              header: [],
+              url: {
+                raw: '{{base_url}}/api/projetos/1',
+                host: ['{{base_url}}'],
+                path: ['api', 'projetos', '1'],
               },
-              null,
-              2
-            ),
+            },
           },
-          url: {
-            raw: '{{base_url}}/api/projetos/1',
-            host: ['{{base_url}}'],
-            path: ['api', 'projetos', '1'],
+          {
+            name: 'POST Cadastrar Projeto',
+            request: {
+              method: 'POST',
+              header: [{ key: 'Content-Type', value: 'application/json' }],
+              body: {
+                mode: 'raw',
+                raw: JSON.stringify(
+                  {
+                    nomeDoProjeto: 'Projeto F — Plataforma Mobile',
+                    area: 'Desenvolvimento Mobile',
+                    status: true,
+                  },
+                  null,
+                  2
+                ),
+              },
+              url: {
+                raw: '{{base_url}}/api/projetos',
+                host: ['{{base_url}}'],
+                path: ['api', 'projetos'],
+              },
+            },
           },
-        },
+          {
+            name: 'PUT Atualizar Projeto',
+            request: {
+              method: 'PUT',
+              header: [{ key: 'Content-Type', value: 'application/json' }],
+              body: {
+                mode: 'raw',
+                raw: JSON.stringify(
+                  {
+                    nomeDoProjeto: 'Projeto A — Obra Residencial Atualizada',
+                    area: 'Construção Civil',
+                    status: true,
+                  },
+                  null,
+                  2
+                ),
+              },
+              url: {
+                raw: '{{base_url}}/api/projetos/1',
+                host: ['{{base_url}}'],
+                path: ['api', 'projetos', '1'],
+              },
+            },
+          },
+          {
+            name: 'DELETE Remover Projeto',
+            request: {
+              method: 'DELETE',
+              header: [],
+              url: {
+                raw: '{{base_url}}/api/projetos/1',
+                host: ['{{base_url}}'],
+                path: ['api', 'projetos', '1'],
+              },
+            },
+          },
+        ],
       },
       {
-        name: 'DELETE Remover Projeto',
-        request: {
-          method: 'DELETE',
-          header: [],
-          url: {
-            raw: '{{base_url}}/api/projetos/1',
-            host: ['{{base_url}}'],
-            path: ['api', 'projetos', '1'],
+        name: 'Usuarios',
+        item: [
+          {
+            name: 'GET Listar Usuários',
+            request: {
+              method: 'GET',
+              header: [],
+              url: {
+                raw: '{{base_url}}/api/usuarios',
+                host: ['{{base_url}}'],
+                path: ['api', 'usuarios'],
+              },
+            },
           },
-        },
+          {
+            name: 'GET Buscar Usuário por Id',
+            request: {
+              method: 'GET',
+              header: [],
+              url: {
+                raw: '{{base_url}}/api/usuarios/1',
+                host: ['{{base_url}}'],
+                path: ['api', 'usuarios', '1'],
+              },
+            },
+          },
+          {
+            name: 'POST Cadastrar Usuário',
+            request: {
+              method: 'POST',
+              header: [{ key: 'Content-Type', value: 'application/json' }],
+              body: {
+                mode: 'raw',
+                raw: JSON.stringify(
+                  {
+                    email: 'email_tres@sp.br',
+                    senha: '1234',
+                  },
+                  null,
+                  2
+                ),
+              },
+              url: {
+                raw: '{{base_url}}/api/usuarios',
+                host: ['{{base_url}}'],
+                path: ['api', 'usuarios'],
+              },
+            },
+          },
+          {
+            name: 'PUT Atualizar Usuário',
+            request: {
+              method: 'PUT',
+              header: [{ key: 'Content-Type', value: 'application/json' }],
+              body: {
+                mode: 'raw',
+                raw: JSON.stringify(
+                  {
+                    email: 'email_quatro@sp.br',
+                    senha: '4321',
+                  },
+                  null,
+                  2
+                ),
+              },
+              url: {
+                raw: '{{base_url}}/api/usuarios/3',
+                host: ['{{base_url}}'],
+                path: ['api', 'usuarios', '3'],
+              },
+            },
+          },
+          {
+            name: 'DELETE Remover Usuário',
+            request: {
+              method: 'DELETE',
+              header: [],
+              url: {
+                raw: '{{base_url}}/api/usuarios/3',
+                host: ['{{base_url}}'],
+                path: ['api', 'usuarios', '3'],
+              },
+            },
+          },
+        ],
       },
     ],
   };

@@ -11,26 +11,31 @@ import {
   AlertCircle,
   Terminal,
 } from 'lucide-react';
-import type { Projeto } from '@/lib/exo-db';
+import type { Projeto, Usuario } from '@/lib/exo-seed';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+export type ApiResource = 'projetos' | 'usuarios';
 
 export interface EndpointPreset {
   id: string;
+  resource: ApiResource;
   method: HttpMethod;
   pathPattern: string;
   controllerMethod: string;
+  controllerName: string;
   label: string;
   description: string;
   requiresId: boolean;
   requiresBody: boolean;
 }
 
-export const ENDPOINT_PRESETS: EndpointPreset[] = [
+export const PROJETOS_PRESETS: EndpointPreset[] = [
   {
     id: 'listar',
+    resource: 'projetos',
     method: 'GET',
     pathPattern: '/api/projetos',
+    controllerName: 'ProjetosController',
     controllerMethod: 'Listar()',
     label: 'Listar projetos',
     description: 'Retorna todos os registros da tabela Projetos.',
@@ -39,8 +44,10 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
   },
   {
     id: 'buscar-id',
+    resource: 'projetos',
     method: 'GET',
     pathPattern: '/api/projetos/{id}',
+    controllerName: 'ProjetosController',
     controllerMethod: 'BuscarPorId(int id)',
     label: 'Buscar por Id',
     description: 'Retorna um único projeto pelo identificador ou 404.',
@@ -49,8 +56,10 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
   },
   {
     id: 'cadastrar',
+    resource: 'projetos',
     method: 'POST',
     pathPattern: '/api/projetos',
+    controllerName: 'ProjetosController',
     controllerMethod: 'Cadastrar(Projeto projeto)',
     label: 'Cadastrar projeto',
     description: 'Insere um novo projeto e retorna status 201 Created.',
@@ -59,8 +68,10 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
   },
   {
     id: 'atualizar',
+    resource: 'projetos',
     method: 'PUT',
     pathPattern: '/api/projetos/{id}',
+    controllerName: 'ProjetosController',
     controllerMethod: 'Atualizar(int id, Projeto projeto)',
     label: 'Atualizar projeto',
     description: 'Atualiza NomeDoProjeto, Area e Status pelo Id.',
@@ -69,8 +80,10 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
   },
   {
     id: 'deletar',
+    resource: 'projetos',
     method: 'DELETE',
     pathPattern: '/api/projetos/{id}',
+    controllerName: 'ProjetosController',
     controllerMethod: 'Deletar(int id)',
     label: 'Deletar projeto',
     description: 'Remove um projeto existente e retorna 204 No Content.',
@@ -79,11 +92,88 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
   },
 ];
 
+export const USUARIOS_PRESETS: EndpointPreset[] = [
+  {
+    id: 'usuarios-listar',
+    resource: 'usuarios',
+    method: 'GET',
+    pathPattern: '/api/usuarios',
+    controllerName: 'UsuariosController',
+    controllerMethod: 'Listar()',
+    label: 'Listar usuários',
+    description: 'Retorna todos os usuários da tabela Usuarios.',
+    requiresId: false,
+    requiresBody: false,
+  },
+  {
+    id: 'usuarios-buscar-id',
+    resource: 'usuarios',
+    method: 'GET',
+    pathPattern: '/api/usuarios/{id}',
+    controllerName: 'UsuariosController',
+    controllerMethod: 'BuscarPorId(int id)',
+    label: 'Buscar por Id',
+    description: 'Retorna um usuário pelo Id ou 404 Not Found.',
+    requiresId: true,
+    requiresBody: false,
+  },
+  {
+    id: 'usuarios-cadastrar',
+    resource: 'usuarios',
+    method: 'POST',
+    pathPattern: '/api/usuarios',
+    controllerName: 'UsuariosController',
+    controllerMethod: 'Cadastrar(Usuario usuario)',
+    label: 'Cadastrar usuário',
+    description: 'Insere um novo usuário (email e senha) e retorna 201 Created.',
+    requiresId: false,
+    requiresBody: true,
+  },
+  {
+    id: 'usuarios-atualizar',
+    resource: 'usuarios',
+    method: 'PUT',
+    pathPattern: '/api/usuarios/{id}',
+    controllerName: 'UsuariosController',
+    controllerMethod: 'Atualizar(int id, Usuario usuario)',
+    label: 'Atualizar usuário',
+    description: 'Atualiza Email e Senha pelo Id e retorna 204 No Content.',
+    requiresId: true,
+    requiresBody: true,
+  },
+  {
+    id: 'usuarios-deletar',
+    resource: 'usuarios',
+    method: 'DELETE',
+    pathPattern: '/api/usuarios/{id}',
+    controllerName: 'UsuariosController',
+    controllerMethod: 'Deletar(int id)',
+    label: 'Deletar usuário',
+    description: 'Remove um usuário existente e retorna 204 No Content.',
+    requiresId: true,
+    requiresBody: false,
+  },
+];
+
+export const ENDPOINT_PRESETS: EndpointPreset[] = [
+  ...PROJETOS_PRESETS,
+  ...USUARIOS_PRESETS,
+];
+
 export const DEFAULT_POST_BODY = JSON.stringify(
   {
     nomeDoProjeto: 'Projeto F — Plataforma Mobile',
     area: 'Desenvolvimento Mobile',
     status: true,
+  },
+  null,
+  2
+);
+
+export const DEFAULT_USER_POST_BODY = JSON.stringify(
+  {
+    email: 'email_tres@sp.br',
+    senha: '1234',
   },
   null,
   2
@@ -100,7 +190,10 @@ export interface RequestHistoryItem {
 }
 
 interface ApiTesterPanelProps {
+  activeResource: ApiResource;
+  onChangeResource: (resource: ApiResource) => void;
   projetos: Projeto[];
+  usuarios: Usuario[];
   selectedEndpointId: string;
   onSelectEndpoint: (id: string) => void;
   targetId: string;
@@ -129,7 +222,7 @@ function statusColorClass(status: number): string {
   return 'text-[#DC2626]';
 }
 
-function parseBodyFields(body: string): {
+function parseProjetoFields(body: string): {
   nomeDoProjeto: string;
   area: string;
   status: boolean;
@@ -158,6 +251,31 @@ function parseBodyFields(body: string): {
     };
   } catch {
     return { nomeDoProjeto: '', area: '', status: true };
+  }
+}
+
+function parseUsuarioFields(body: string): {
+  email: string;
+  senha: string;
+} {
+  try {
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+    return {
+      email:
+        typeof parsed.email === 'string'
+          ? parsed.email
+          : typeof parsed.Email === 'string'
+          ? parsed.Email
+          : '',
+      senha:
+        typeof parsed.senha === 'string'
+          ? parsed.senha
+          : typeof parsed.Senha === 'string'
+          ? parsed.Senha
+          : '',
+    };
+  } catch {
+    return { email: '', senha: '' };
   }
 }
 
@@ -213,7 +331,10 @@ async function dispatchApiRequest(params: {
 }
 
 export default function ApiTesterPanel({
+  activeResource,
+  onChangeResource,
   projetos,
+  usuarios,
   selectedEndpointId,
   onSelectEndpoint,
   targetId,
@@ -222,9 +343,12 @@ export default function ApiTesterPanel({
   onChangeRequestBody,
   onDatabaseMutated,
 }: ApiTesterPanelProps) {
+  const presetsForResource =
+    activeResource === 'usuarios' ? USUARIOS_PRESETS : PROJETOS_PRESETS;
+
   const activePreset =
-    ENDPOINT_PRESETS.find((item) => item.id === selectedEndpointId) ??
-    ENDPOINT_PRESETS[0];
+    presetsForResource.find((item) => item.id === selectedEndpointId) ??
+    presetsForResource[0];
 
   const [bodyInputMode, setBodyInputMode] = useState<'form' | 'json'>('form');
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -252,20 +376,31 @@ export default function ApiTesterPanel({
 
   const [history, setHistory] = useState<RequestHistoryItem[]>([]);
 
+  const baseRoute =
+    activeResource === 'usuarios' ? '/api/usuarios' : '/api/projetos';
+
   const resolvedUrl = activePreset.requiresId
-    ? `/api/projetos/${targetId.trim() || '1'}`
-    : '/api/projetos';
+    ? `${baseRoute}/${targetId.trim() || '1'}`
+    : baseRoute;
 
-  const formFields = parseBodyFields(requestBody);
+  const projetoFields = parseProjetoFields(requestBody);
+  const usuarioFields = parseUsuarioFields(requestBody);
 
-  function updateFormField(
+  function updateProjetoField(
     patch: Partial<{ nomeDoProjeto: string; area: string; status: boolean }>
   ) {
-    const next = {
-      ...formFields,
-      ...patch,
-    };
-    onChangeRequestBody(JSON.stringify(next, null, 2));
+    onChangeRequestBody(
+      JSON.stringify({ ...projetoFields, ...patch }, null, 2)
+    );
+    if (jsonError) setJsonError(null);
+  }
+
+  function updateUsuarioField(
+    patch: Partial<{ email: string; senha: string }>
+  ) {
+    onChangeRequestBody(
+      JSON.stringify({ ...usuarioFields, ...patch }, null, 2)
+    );
     if (jsonError) setJsonError(null);
   }
 
@@ -276,8 +411,8 @@ export default function ApiTesterPanel({
 
   function handleTargetIdChange(newId: string) {
     onChangeTargetId(newId);
+    const numericId = Number(newId);
     if (activePreset.id === 'atualizar') {
-      const numericId = Number(newId);
       const match = projetos.find((p) => p.id === numericId);
       if (match) {
         onChangeRequestBody(
@@ -292,14 +427,28 @@ export default function ApiTesterPanel({
           )
         );
       }
+    } else if (activePreset.id === 'usuarios-atualizar') {
+      const match = usuarios.find((u) => u.id === numericId);
+      if (match) {
+        onChangeRequestBody(
+          JSON.stringify(
+            {
+              email: match.email,
+              senha: match.senha,
+            },
+            null,
+            2
+          )
+        );
+      }
     }
   }
 
   async function executeRequest() {
     const preset = activePreset;
     const url = preset.requiresId
-      ? `/api/projetos/${targetId.trim() || '1'}`
-      : '/api/projetos';
+      ? `${baseRoute}/${targetId.trim() || '1'}`
+      : baseRoute;
 
     setJsonError(null);
 
@@ -370,7 +519,9 @@ export default function ApiTesterPanel({
 
   async function handleCopyCurl() {
     const origin =
-      typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+      typeof window !== 'undefined'
+        ? window.location.origin
+        : 'http://localhost:3000';
     const fullUrl = `${origin}${resolvedUrl}`;
     const curlParts = [`curl -X ${activePreset.method} "${fullUrl}"`];
     if (activePreset.requiresBody) {
@@ -401,7 +552,7 @@ export default function ApiTesterPanel({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-medium text-[#64748B]">
-            ProjetosController · {activePreset.controllerMethod}
+            {activePreset.controllerName} · {activePreset.controllerMethod}
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[#0F172A] text-balance">
             Testador da API no Navegador
@@ -431,20 +582,48 @@ export default function ApiTesterPanel({
           </button>
 
           <a
-            href="/api/projetos"
+            href={baseRoute}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-md border border-[#CBD5E1] bg-white px-3.5 py-2 text-xs font-medium text-[#0F172A] transition-colors hover:bg-[#F1F5F9] whitespace-nowrap"
           >
-            <span>Abrir /api/projetos no navegador</span>
+            <span>Abrir {baseRoute} no navegador</span>
             <ExternalLink className="h-3.5 w-3.5 text-[#475569]" />
           </a>
         </div>
       </div>
 
+      {/* Resource Switcher: Projetos vs Usuarios */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex items-center gap-1 rounded-md bg-[#E2E8F0]/70 p-1">
+          <button
+            type="button"
+            onClick={() => onChangeResource('projetos')}
+            className={`rounded px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
+              activeResource === 'projetos'
+                ? 'bg-white text-[#0F172A] shadow-xs'
+                : 'text-[#475569] hover:text-[#0F172A]'
+            }`}
+          >
+            Projetos (/api/projetos)
+          </button>
+          <button
+            type="button"
+            onClick={() => onChangeResource('usuarios')}
+            className={`rounded px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
+              activeResource === 'usuarios'
+                ? 'bg-white text-[#0F172A] shadow-xs'
+                : 'text-[#475569] hover:text-[#0F172A]'
+            }`}
+          >
+            Usuários (/api/usuarios)
+          </button>
+        </div>
+      </div>
+
       {/* Mobile endpoint selector (desktop uses sidebar) */}
       <div className="flex flex-wrap gap-1.5 lg:hidden">
-        {ENDPOINT_PRESETS.map((preset) => {
+        {presetsForResource.map((preset) => {
           const isActive = preset.id === activePreset.id;
           return (
             <button
@@ -489,24 +668,26 @@ export default function ApiTesterPanel({
           {activePreset.requiresId && (
             <div className="flex items-center gap-2 shrink-0">
               <label
-                htmlFor="projeto-id-input"
+                htmlFor="entity-id-input"
                 className="text-xs font-medium text-[#475569] whitespace-nowrap"
               >
                 Id:
               </label>
               <input
-                id="projeto-id-input"
+                id="entity-id-input"
                 type="number"
                 min={1}
                 value={targetId}
                 onChange={(e) => handleTargetIdChange(e.target.value)}
                 className="w-20 rounded-md border border-[#CBD5E1] bg-white px-2.5 py-2 font-mono text-sm tabular-nums text-[#0F172A] focus:border-[#2563EB] focus:outline-none"
               />
-              {projetos.length > 0 && (
+              {activeResource === 'projetos' && projetos.length > 0 && (
                 <select
                   aria-label="Selecionar projeto existente"
                   value={
-                    projetos.some((p) => String(p.id) === targetId) ? targetId : ''
+                    projetos.some((p) => String(p.id) === targetId)
+                      ? targetId
+                      : ''
                   }
                   onChange={(e) => {
                     if (e.target.value) handleTargetIdChange(e.target.value);
@@ -517,6 +698,27 @@ export default function ApiTesterPanel({
                   {projetos.map((proj) => (
                     <option key={proj.id} value={String(proj.id)}>
                       #{proj.id} — {proj.nomeDoProjeto}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {activeResource === 'usuarios' && usuarios.length > 0 && (
+                <select
+                  aria-label="Selecionar usuário existente"
+                  value={
+                    usuarios.some((u) => String(u.id) === targetId)
+                      ? targetId
+                      : ''
+                  }
+                  onChange={(e) => {
+                    if (e.target.value) handleTargetIdChange(e.target.value);
+                  }}
+                  className="max-w-[180px] rounded-md border border-[#CBD5E1] bg-white px-2.5 py-2 text-xs text-[#334155] focus:border-[#2563EB] focus:outline-none"
+                >
+                  <option value="">Escolher usuário...</option>
+                  {usuarios.map((user) => (
+                    <option key={user.id} value={String(user.id)}>
+                      #{user.id} — {user.email}
                     </option>
                   ))}
                 </select>
@@ -577,7 +779,11 @@ export default function ApiTesterPanel({
                 <button
                   type="button"
                   onClick={() => {
-                    onChangeRequestBody(DEFAULT_POST_BODY);
+                    onChangeRequestBody(
+                      activeResource === 'usuarios'
+                        ? DEFAULT_USER_POST_BODY
+                        : DEFAULT_POST_BODY
+                    );
                     setJsonError(null);
                   }}
                   className="inline-flex items-center gap-1 text-xs font-medium text-[#475569] hover:text-[#0F172A] whitespace-nowrap"
@@ -589,62 +795,105 @@ export default function ApiTesterPanel({
             </div>
 
             {bodyInputMode === 'form' ? (
-              <div className="grid grid-cols-1 gap-4 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] p-4 sm:grid-cols-3">
-                <div>
-                  <label
-                    htmlFor="tester-nome-input"
-                    className="mb-1.5 block text-xs font-medium text-[#334155]"
-                  >
-                    NomeDoProjeto
-                  </label>
-                  <input
-                    id="tester-nome-input"
-                    type="text"
-                    value={formFields.nomeDoProjeto}
-                    onChange={(e) =>
-                      updateFormField({ nomeDoProjeto: e.target.value })
-                    }
-                    placeholder="Nome do projeto"
-                    className="w-full rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-xs text-[#0F172A] focus:border-[#2563EB] focus:outline-none"
-                  />
+              activeResource === 'projetos' ? (
+                <div className="grid grid-cols-1 gap-4 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] p-4 sm:grid-cols-3">
+                  <div>
+                    <label
+                      htmlFor="tester-nome-input"
+                      className="mb-1.5 block text-xs font-medium text-[#334155]"
+                    >
+                      NomeDoProjeto
+                    </label>
+                    <input
+                      id="tester-nome-input"
+                      type="text"
+                      value={projetoFields.nomeDoProjeto}
+                      onChange={(e) =>
+                        updateProjetoField({ nomeDoProjeto: e.target.value })
+                      }
+                      placeholder="Nome do projeto"
+                      className="w-full rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-xs text-[#0F172A] focus:border-[#2563EB] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="tester-area-input"
+                      className="mb-1.5 block text-xs font-medium text-[#334155]"
+                    >
+                      Area
+                    </label>
+                    <input
+                      id="tester-area-input"
+                      type="text"
+                      value={projetoFields.area}
+                      onChange={(e) =>
+                        updateProjetoField({ area: e.target.value })
+                      }
+                      placeholder="Área do projeto"
+                      className="w-full rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-xs text-[#0F172A] focus:border-[#2563EB] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <span className="mb-1.5 block text-xs font-medium text-[#334155]">
+                      Status
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={projetoFields.status}
+                      onClick={() =>
+                        updateProjetoField({ status: !projetoFields.status })
+                      }
+                      className={`w-full rounded-md border px-3 py-2 text-left text-xs font-semibold transition-colors ${
+                        projetoFields.status
+                          ? 'border-[#16A34A] bg-[#F0FDF4] text-[#15803D]'
+                          : 'border-[#CBD5E1] bg-white text-[#475569]'
+                      }`}
+                    >
+                      {projetoFields.status ? 'Ativo (true)' : 'Inativo (false)'}
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label
-                    htmlFor="tester-area-input"
-                    className="mb-1.5 block text-xs font-medium text-[#334155]"
-                  >
-                    Area
-                  </label>
-                  <input
-                    id="tester-area-input"
-                    type="text"
-                    value={formFields.area}
-                    onChange={(e) => updateFormField({ area: e.target.value })}
-                    placeholder="Área do projeto"
-                    className="w-full rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-xs text-[#0F172A] focus:border-[#2563EB] focus:outline-none"
-                  />
+              ) : (
+                <div className="grid grid-cols-1 gap-4 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] p-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="tester-user-email-input"
+                      className="mb-1.5 block text-xs font-medium text-[#334155]"
+                    >
+                      Email
+                    </label>
+                    <input
+                      id="tester-user-email-input"
+                      type="email"
+                      value={usuarioFields.email}
+                      onChange={(e) =>
+                        updateUsuarioField({ email: e.target.value })
+                      }
+                      placeholder="Ex.: email_tres@sp.br"
+                      className="w-full rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-xs text-[#0F172A] focus:border-[#2563EB] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="tester-user-senha-input"
+                      className="mb-1.5 block text-xs font-medium text-[#334155]"
+                    >
+                      Senha
+                    </label>
+                    <input
+                      id="tester-user-senha-input"
+                      type="text"
+                      value={usuarioFields.senha}
+                      onChange={(e) =>
+                        updateUsuarioField({ senha: e.target.value })
+                      }
+                      placeholder="Ex.: 1234"
+                      className="w-full rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-xs text-[#0F172A] focus:border-[#2563EB] focus:outline-none"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <span className="mb-1.5 block text-xs font-medium text-[#334155]">
-                    Status
-                  </span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={formFields.status}
-                    onClick={() =>
-                      updateFormField({ status: !formFields.status })
-                    }
-                    className={`w-full rounded-md border px-3 py-2 text-left text-xs font-semibold transition-colors ${
-                      formFields.status
-                        ? 'border-[#16A34A] bg-[#F0FDF4] text-[#15803D]'
-                        : 'border-[#CBD5E1] bg-white text-[#475569]'
-                    }`}
-                  >
-                    {formFields.status ? 'Ativo (true)' : 'Inativo (false)'}
-                  </button>
-                </div>
-              </div>
+              )
             ) : (
               <textarea
                 value={requestBody}

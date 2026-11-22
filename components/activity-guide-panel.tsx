@@ -61,15 +61,30 @@ const GUIDE_STEPS: GuideStep[] = [
   {
     id: 'crud-restante',
     number: '05.',
-    title: 'Implementar e testar os demais métodos CRUD no Insomnia / Postman',
+    title: 'Implementar e testar os demais métodos CRUD de Projetos',
     summary:
-      'Adicione BuscarPorId (GET /{id}), Cadastrar (POST), Atualizar (PUT /{id}) e Deletar (DELETE /{id}) no repositório e no controlador. Valide primeiro pelos Formulários da interface e depois importe a coleção no Insomnia ou Postman.',
+      'Adicione BuscarPorId (GET /{id}), Cadastrar (POST), Atualizar (PUT /{id}) e Deletar (DELETE /{id}) no repositório e no controlador. Valide primeiro pelos Formulários da interface e depois no Insomnia ou Postman.',
     fileLinks: [
       { label: 'ProjetoRepository.cs (CRUD)', fileId: 'projeto-repository' },
       { label: 'ProjetosController.cs (CRUD)', fileId: 'projetos-controller' },
       { label: 'Program.cs', fileId: 'program-cs' },
     ],
     endpointId: 'cadastrar',
+  },
+  {
+    id: 'crud-usuarios',
+    number: '06.',
+    title: 'Implementar o CRUD de Usuários (Atividade 5) e testar /api/usuarios',
+    summary:
+      'Crie Models/Usuario.cs, Repositories/UsuarioRepository.cs (com Login e CRUD) e Controllers/UsuariosController.cs, adicione DbSet<Usuario> Usuarios no ExoContext.cs e registre UsuarioRepository em Program.cs.',
+    fileLinks: [
+      { label: 'Usuario.cs', fileId: 'usuario-model' },
+      { label: 'UsuarioRepository.cs', fileId: 'usuario-repository' },
+      { label: 'UsuariosController.cs', fileId: 'usuarios-controller' },
+      { label: 'ExoContext.cs', fileId: 'exo-context' },
+      { label: 'Program.cs', fileId: 'program-cs' },
+    ],
+    endpointId: 'usuarios-listar',
   },
 ];
 

@@ -11,6 +11,17 @@ export interface ProjetoInput {
   status: boolean;
 }
 
+export interface Usuario {
+  id: number;
+  email: string;
+  senha: string;
+}
+
+export interface UsuarioInput {
+  email: string;
+  senha: string;
+}
+
 export const INITIAL_PROJETOS_SEED: Projeto[] = [
   {
     id: 1,
@@ -41,5 +52,18 @@ export const INITIAL_PROJETOS_SEED: Projeto[] = [
     nomeDoProjeto: 'Projeto E — Eficiência Energética',
     area: 'Engenharia Elétrica',
     status: false,
+  },
+];
+
+export const INITIAL_USUARIOS_SEED: Usuario[] = [
+  {
+    id: 1,
+    email: 'email_um@sp.br',
+    senha: '1234',
+  },
+  {
+    id: 2,
+    email: 'email_dois@sp.br',
+    senha: '1234',
   },
 ];

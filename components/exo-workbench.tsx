@@ -3,15 +3,20 @@
 import React, { useState, useCallback } from 'react';
 import { MotionConfig, motion } from 'motion/react';
 import { RotateCcw, Folder, FileCode2, Database } from 'lucide-react';
-import type { Projeto } from '@/lib/exo-db';
+import type { Projeto, Usuario } from '@/lib/exo-seed';
 import { EXO_FILE_TEMPLATES } from '@/lib/exo-templates';
 import ApiTesterPanel, {
-  ENDPOINT_PRESETS,
+  PROJETOS_PRESETS,
+  USUARIOS_PRESETS,
   DEFAULT_POST_BODY,
+  DEFAULT_USER_POST_BODY,
+  type ApiResource,
   type HttpMethod,
 } from '@/components/api-tester-panel';
 import ProjetoCrudForms from '@/components/projeto-crud-forms';
+import UsuarioCrudForms from '@/components/usuario-crud-forms';
 import ProjetosTablePanel from '@/components/projetos-table-panel';
+import UsuariosTablePanel from '@/components/usuarios-table-panel';
 import CodeExplorerPanel from '@/components/code-explorer-panel';
 import ActivityGuidePanel from '@/components/activity-guide-panel';
 
@@ -19,6 +24,7 @@ type ActiveView = 'tester' | 'formularios' | 'tabela' | 'codigo' | 'guia';
 
 interface ExoWorkbenchProps {
   initialProjetos: Projeto[];
+  initialUsuarios: Usuario[];
 }
 
 function methodTextColor(method: HttpMethod): string {
@@ -34,9 +40,14 @@ function methodTextColor(method: HttpMethod): string {
   }
 }
 
-export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
+export default function ExoWorkbench({
+  initialProjetos,
+  initialUsuarios,
+}: ExoWorkbenchProps) {
   const [activeView, setActiveView] = useState<ActiveView>('tester');
+  const [activeResource, setActiveResource] = useState<ApiResource>('projetos');
   const [projetos, setProjetos] = useState<Projeto[]>(initialProjetos);
+  const [usuarios, setUsuarios] = useState<Usuario[]>(initialUsuarios);
   const [isLoadingTable, setIsLoadingTable] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [feedbackBanner, setFeedbackBanner] = useState<string | null>(null);
@@ -46,23 +57,43 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
   const [requestBody, setRequestBody] = useState<string>(DEFAULT_POST_BODY);
   const [selectedFileId, setSelectedFileId] = useState<string>('cria-db');
 
-  const refreshProjetos = useCallback(async () => {
+  const refreshDatabase = useCallback(async () => {
     setIsLoadingTable(true);
     try {
-      const response = await fetch('/api/projetos', { cache: 'no-store' });
-      if (response.ok) {
-        const data = (await response.json()) as Projeto[];
-        setProjetos(data);
+      const [projRes, userRes] = await Promise.all([
+        fetch('/api/projetos', { cache: 'no-store' }),
+        fetch('/api/usuarios', { cache: 'no-store' }),
+      ]);
+      if (projRes.ok) {
+        setProjetos((await projRes.json()) as Projeto[]);
+      }
+      if (userRes.ok) {
+        setUsuarios((await userRes.json()) as Usuario[]);
       }
     } finally {
       setIsLoadingTable(false);
     }
   }, []);
 
+  function handleChangeResource(resource: ApiResource) {
+    setActiveResource(resource);
+    if (resource === 'usuarios') {
+      setSelectedEndpointId('usuarios-listar');
+      setTargetId(usuarios[0] ? String(usuarios[0].id) : '1');
+      setRequestBody(DEFAULT_USER_POST_BODY);
+    } else {
+      setSelectedEndpointId('listar');
+      setTargetId(projetos[0] ? String(projetos[0].id) : '1');
+      setRequestBody(DEFAULT_POST_BODY);
+    }
+  }
+
   function handleSelectEndpoint(endpointId: string) {
     setSelectedEndpointId(endpointId);
     if (endpointId === 'cadastrar') {
       setRequestBody(DEFAULT_POST_BODY);
+    } else if (endpointId === 'usuarios-cadastrar') {
+      setRequestBody(DEFAULT_USER_POST_BODY);
     } else if (endpointId === 'atualizar') {
       const numericId = Number(targetId);
       const match =
@@ -81,6 +112,23 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
           )
         );
       }
+    } else if (endpointId === 'usuarios-atualizar') {
+      const numericId = Number(targetId);
+      const match =
+        usuarios.find((u) => u.id === numericId) ?? usuarios[0] ?? null;
+      if (match) {
+        setTargetId(String(match.id));
+        setRequestBody(
+          JSON.stringify(
+            {
+              email: match.email,
+              senha: match.senha,
+            },
+            null,
+            2
+          )
+        );
+      }
     }
   }
 
@@ -91,16 +139,17 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
       const response = await fetch('/api/projetos/reset', { method: 'POST' });
       if (response.ok) {
         const data = (await response.json()) as {
-          mensagem?: string;
           projetos?: Projeto[];
+          usuarios?: Usuario[];
         };
-        if (Array.isArray(data.projetos)) {
+        if (Array.isArray(data.projetos) && Array.isArray(data.usuarios)) {
           setProjetos(data.projetos);
+          setUsuarios(data.usuarios);
         } else {
-          await refreshProjetos();
+          await refreshDatabase();
         }
         setFeedbackBanner(
-          'Banco de dados restaurado para os 5 registros iniciais de cria-db.sql.'
+          'Banco restaurado para os registros iniciais de Projetos e Usuários (cria-db.sql).'
         );
         setTimeout(() => setFeedbackBanner(null), 3500);
       }
@@ -110,8 +159,16 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
   }
 
   function handleTestProjectInApi(id: number) {
+    setActiveResource('projetos');
     setTargetId(String(id));
     setSelectedEndpointId('buscar-id');
+    setActiveView('tester');
+  }
+
+  function handleTestUsuarioInApi(id: number) {
+    setActiveResource('usuarios');
+    setTargetId(String(id));
+    setSelectedEndpointId('usuarios-buscar-id');
     setActiveView('tester');
   }
 
@@ -121,12 +178,20 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
   }
 
   function handleOpenTesterEndpoint(endpointId: string) {
+    if (endpointId.startsWith('usuarios-')) {
+      setActiveResource('usuarios');
+    } else {
+      setActiveResource('projetos');
+    }
     handleSelectEndpoint(endpointId);
     setActiveView('tester');
   }
 
   const ativosCount = projetos.filter((p) => p.status).length;
   const inativosCount = projetos.length - ativosCount;
+
+  const sidebarEndpoints =
+    activeResource === 'usuarios' ? USUARIOS_PRESETS : PROJETOS_PRESETS;
 
   const navItems: { id: ActiveView; label: string }[] = [
     { id: 'tester', label: 'Testador API' },
@@ -228,10 +293,10 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
               {activeView === 'tester' && (
                 <div>
                   <h2 className="mb-2.5 text-xs font-semibold text-[#475569]">
-                    Endpoints da API
+                    Endpoints ({activeResource === 'usuarios' ? 'Usuários' : 'Projetos'})
                   </h2>
                   <div className="divide-y divide-[#F1F5F9] rounded-lg border border-[#E2E8F0] bg-white">
-                    {ENDPOINT_PRESETS.map((preset) => {
+                    {sidebarEndpoints.map((preset) => {
                       const isSelected = selectedEndpointId === preset.id;
                       return (
                         <button
@@ -277,7 +342,10 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
                         <span className="font-mono font-semibold text-[#1D4ED8]">
                           POST
                         </span>
-                        <span>Adicionar projeto</span>
+                        <span>
+                          Cadastrar{' '}
+                          {activeResource === 'usuarios' ? 'usuário' : 'projeto'}
+                        </span>
                       </li>
                       <li className="flex items-center justify-between">
                         <span className="font-mono font-semibold text-[#B45309]">
@@ -313,9 +381,10 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
                       </span>
                       <span>projetos</span>
                       <span aria-hidden="true">·</span>
-                      <span className="font-mono tabular-nums text-[#16A34A]">
-                        {ativosCount} ativos
+                      <span className="font-mono tabular-nums font-semibold text-[#0F172A]">
+                        {usuarios.length}
                       </span>
+                      <span>usuários</span>
                     </div>
                   </div>
                 </div>
@@ -325,35 +394,55 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
                 <div className="space-y-4">
                   <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
                     <h2 className="text-xs font-semibold text-[#0F172A]">
-                      Esquema dbo.Projetos
+                      Esquema{' '}
+                      {activeResource === 'usuarios'
+                        ? 'dbo.Usuarios'
+                        : 'dbo.Projetos'}
                     </h2>
-                    <dl className="mt-3 space-y-2 font-mono text-xs">
-                      <div className="flex items-center justify-between">
-                        <dt className="text-[#0F172A]">Id</dt>
-                        <dd className="text-[#64748B]">INT PK</dd>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <dt className="text-[#0F172A]">NomeDoProjeto</dt>
-                        <dd className="text-[#64748B]">VARCHAR</dd>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <dt className="text-[#0F172A]">Area</dt>
-                        <dd className="text-[#64748B]">VARCHAR</dd>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <dt className="text-[#0F172A]">Status</dt>
-                        <dd className="text-[#64748B]">BIT</dd>
-                      </div>
-                    </dl>
+                    {activeResource === 'projetos' ? (
+                      <dl className="mt-3 space-y-2 font-mono text-xs">
+                        <div className="flex items-center justify-between">
+                          <dt className="text-[#0F172A]">Id</dt>
+                          <dd className="text-[#64748B]">INT PK</dd>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <dt className="text-[#0F172A]">NomeDoProjeto</dt>
+                          <dd className="text-[#64748B]">VARCHAR</dd>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <dt className="text-[#0F172A]">Area</dt>
+                          <dd className="text-[#64748B]">VARCHAR</dd>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <dt className="text-[#0F172A]">Status</dt>
+                          <dd className="text-[#64748B]">BIT</dd>
+                        </div>
+                      </dl>
+                    ) : (
+                      <dl className="mt-3 space-y-2 font-mono text-xs">
+                        <div className="flex items-center justify-between">
+                          <dt className="text-[#0F172A]">Id</dt>
+                          <dd className="text-[#64748B]">INT PK</dd>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <dt className="text-[#0F172A]">Email</dt>
+                          <dd className="text-[#64748B]">VARCHAR</dd>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <dt className="text-[#0F172A]">Senha</dt>
+                          <dd className="text-[#64748B]">VARCHAR</dd>
+                        </div>
+                      </dl>
+                    )}
                   </div>
 
                   <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
                     <h2 className="text-xs font-semibold text-[#0F172A]">
-                      Resumo da Tabela
+                      Resumo do Banco
                     </h2>
                     <dl className="mt-3 space-y-2 text-xs">
                       <div className="flex items-center justify-between">
-                        <dt className="text-[#475569]">Total de registros</dt>
+                        <dt className="text-[#475569]">Total de projetos</dt>
                         <dd className="font-mono font-semibold tabular-nums text-[#0F172A]">
                           {projetos.length}
                         </dd>
@@ -368,6 +457,12 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
                         <dt className="text-[#475569]">Projetos inativos</dt>
                         <dd className="font-mono font-semibold tabular-nums text-[#64748B]">
                           {inativosCount}
+                        </dd>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-[#F1F5F9] pt-2">
+                        <dt className="text-[#475569]">Total de usuários</dt>
+                        <dd className="font-mono font-semibold tabular-nums text-[#0F172A]">
+                          {usuarios.length}
                         </dd>
                       </div>
                     </dl>
@@ -413,10 +508,10 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
               {activeView === 'guia' && (
                 <div className="rounded-lg border border-[#E2E8F0] bg-white p-4 space-y-3">
                   <h2 className="text-xs font-semibold text-[#0F172A]">
-                    Resumo da Atividade 3
+                    Atividades 3 e 5 (ExoApi)
                   </h2>
                   <p className="text-xs leading-relaxed text-[#475569]">
-                    Objetivo: conectar a Web API Exo.WebApi ao banco SQL Server ExoApi e validar o método GET Listar e o CRUD de Projetos no navegador, nos formulários e no Insomnia/Postman.
+                    Implementação completa da estrutura Web API com os CRUDs de Projetos (/api/projetos) e Usuários (/api/usuarios).
                   </p>
                   <div className="border-t border-[#F1F5F9] pt-3 space-y-2 text-xs">
                     <button
@@ -428,23 +523,25 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveView('formularios')}
+                      onClick={() => handleOpenCodeFile('usuarios-controller')}
                       className="block text-left font-medium text-[#2563EB] hover:underline"
                     >
-                      Abrir Formulários CRUD
+                      Abrir UsuariosController.cs
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleOpenTesterEndpoint('listar')}
+                      onClick={() =>
+                        handleOpenTesterEndpoint('usuarios-listar')
+                      }
                       className="block text-left font-medium text-[#2563EB] hover:underline"
                     >
-                      Testar GET /api/projetos
+                      Testar GET /api/usuarios
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Compact always-available table snapshot in sidebar */}
+              {/* Compact always-available database snapshot in sidebar */}
               {activeView === 'tester' && (
                 <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
                   <div className="flex items-center justify-between">
@@ -456,7 +553,7 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
                       onClick={() => setActiveView('tabela')}
                       className="text-xs font-medium text-[#2563EB] hover:underline"
                     >
-                      Ver tabela
+                      Ver tabelas
                     </button>
                   </div>
                   <div className="mt-2.5 flex items-center gap-2 text-xs text-[#475569]">
@@ -465,9 +562,10 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
                     </span>
                     <span>projetos</span>
                     <span aria-hidden="true">·</span>
-                    <span className="font-mono tabular-nums text-[#16A34A]">
-                      {ativosCount} ativos
+                    <span className="font-mono tabular-nums font-semibold text-[#0F172A]">
+                      {usuarios.length}
                     </span>
+                    <span>usuários</span>
                   </div>
                 </div>
               )}
@@ -477,39 +575,113 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
           {/* Main Content Viewport */}
           <main className="min-w-0 flex-1">
             <motion.div
-              key={activeView}
+              key={`${activeView}-${activeResource}`}
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
             >
               {activeView === 'tester' && (
                 <ApiTesterPanel
+                  activeResource={activeResource}
+                  onChangeResource={handleChangeResource}
                   projetos={projetos}
+                  usuarios={usuarios}
                   selectedEndpointId={selectedEndpointId}
                   onSelectEndpoint={handleSelectEndpoint}
                   targetId={targetId}
                   onChangeTargetId={setTargetId}
                   requestBody={requestBody}
                   onChangeRequestBody={setRequestBody}
-                  onDatabaseMutated={refreshProjetos}
+                  onDatabaseMutated={refreshDatabase}
                 />
               )}
 
               {activeView === 'formularios' && (
-                <ProjetoCrudForms
-                  projetos={projetos}
-                  onDatabaseMutated={refreshProjetos}
-                />
+                <div className="space-y-6">
+                  <div className="inline-flex items-center gap-1 rounded-md bg-[#E2E8F0]/70 p-1">
+                    <button
+                      type="button"
+                      onClick={() => handleChangeResource('projetos')}
+                      className={`rounded px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
+                        activeResource === 'projetos'
+                          ? 'bg-white text-[#0F172A] shadow-xs'
+                          : 'text-[#475569] hover:text-[#0F172A]'
+                      }`}
+                    >
+                      Projetos (/api/projetos)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleChangeResource('usuarios')}
+                      className={`rounded px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
+                        activeResource === 'usuarios'
+                          ? 'bg-white text-[#0F172A] shadow-xs'
+                          : 'text-[#475569] hover:text-[#0F172A]'
+                      }`}
+                    >
+                      Usuários (/api/usuarios)
+                    </button>
+                  </div>
+
+                  {activeResource === 'projetos' ? (
+                    <ProjetoCrudForms
+                      projetos={projetos}
+                      onDatabaseMutated={refreshDatabase}
+                    />
+                  ) : (
+                    <UsuarioCrudForms
+                      usuarios={usuarios}
+                      onDatabaseMutated={refreshDatabase}
+                    />
+                  )}
+                </div>
               )}
 
               {activeView === 'tabela' && (
-                <ProjetosTablePanel
-                  projetos={projetos}
-                  isLoading={isLoadingTable}
-                  onRefresh={refreshProjetos}
-                  onResetDatabase={handleResetDatabase}
-                  onTestProjectInApi={handleTestProjectInApi}
-                />
+                <div className="space-y-6">
+                  <div className="inline-flex items-center gap-1 rounded-md bg-[#E2E8F0]/70 p-1">
+                    <button
+                      type="button"
+                      onClick={() => handleChangeResource('projetos')}
+                      className={`rounded px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
+                        activeResource === 'projetos'
+                          ? 'bg-white text-[#0F172A] shadow-xs'
+                          : 'text-[#475569] hover:text-[#0F172A]'
+                      }`}
+                    >
+                      dbo.Projetos ({projetos.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleChangeResource('usuarios')}
+                      className={`rounded px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
+                        activeResource === 'usuarios'
+                          ? 'bg-white text-[#0F172A] shadow-xs'
+                          : 'text-[#475569] hover:text-[#0F172A]'
+                      }`}
+                    >
+                      dbo.Usuarios ({usuarios.length})
+                    </button>
+                  </div>
+
+                  {activeResource === 'projetos' ? (
+                    <ProjetosTablePanel
+                      projetos={projetos}
+                      isLoading={isLoadingTable}
+                      onRefresh={refreshDatabase}
+                      onResetDatabase={handleResetDatabase}
+                      onTestProjectInApi={handleTestProjectInApi}
+                    />
+                  ) : (
+                    <UsuariosTablePanel
+                      usuarios={usuarios}
+                      isLoading={isLoadingTable}
+                      onRefresh={refreshDatabase}
+                      onResetDatabase={handleResetDatabase}
+                      onTestUsuarioInApi={handleTestUsuarioInApi}
+                    />
+                  )}
+                </div>
               )}
 
               {activeView === 'codigo' && (
@@ -533,14 +705,24 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
         <footer className="border-t border-[#E2E8F0] bg-white">
           <div className="mx-auto flex max-w-[1440px] flex-col gap-2 px-6 py-3 text-xs text-[#64748B] sm:flex-row sm:items-center sm:justify-between">
             <span>ExoApi Workbench · Projeto Exo.WebApi e Banco SQL Server</span>
-            <a
-              href="/api/projetos"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono text-[#2563EB] hover:underline"
-            >
-              GET /api/projetos
-            </a>
+            <div className="flex items-center gap-4 font-mono">
+              <a
+                href="/api/projetos"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#2563EB] hover:underline"
+              >
+                GET /api/projetos
+              </a>
+              <a
+                href="/api/usuarios"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#2563EB] hover:underline"
+              >
+                GET /api/usuarios
+              </a>
+            </div>
           </div>
         </footer>
       </div>

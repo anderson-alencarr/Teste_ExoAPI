@@ -4,11 +4,13 @@ import { resetarBanco } from '@/lib/exo-db';
 export const dynamic = 'force-dynamic';
 
 export async function POST() {
-  const projetos = resetarBanco();
+  const { projetos, usuarios } = resetarBanco();
   return NextResponse.json(
     {
-      mensagem: 'Banco de dados restaurado para o estado inicial de cria-db.sql.',
+      mensagem:
+        'Banco de dados restaurado para os registros iniciais de cria-db.sql.',
       projetos,
+      usuarios,
     },
     { status: 200 }
   );

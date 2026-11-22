@@ -1,9 +1,15 @@
-import { INITIAL_PROJETOS_SEED, type Projeto } from '@/lib/exo-seed';
+import {
+  INITIAL_PROJETOS_SEED,
+  INITIAL_USUARIOS_SEED,
+  type Projeto,
+  type Usuario,
+} from '@/lib/exo-seed';
 
 export interface GenerateCriaDbOptions {
   databaseName?: string;
   tableName?: string;
   projetos?: Projeto[];
+  usuarios?: Usuario[];
 }
 
 function escapeSqlString(value: string): string {
@@ -12,12 +18,13 @@ function escapeSqlString(value: string): string {
 
 /**
  * Generates the T-SQL script (cria-db.sql) for SQL Server Management Studio (SSMS)
- * based on the initial structure of the ExoApi projects database.
+ * based on the initial structure of the ExoApi Projetos and Usuarios tables.
  */
 export function generateCriaDbSql(options: GenerateCriaDbOptions = {}): string {
   const databaseName = options.databaseName ?? 'ExoApi';
   const tableName = options.tableName ?? 'Projetos';
-  const registros = options.projetos ?? INITIAL_PROJETOS_SEED;
+  const registrosProjetos = options.projetos ?? INITIAL_PROJETOS_SEED;
+  const registrosUsuarios = options.usuarios ?? INITIAL_USUARIOS_SEED;
 
   const lines: string[] = [
     `-- Script de criação do banco de dados ${databaseName} para SQL Server Management Studio (SSMS)`,
@@ -39,21 +46,43 @@ export function generateCriaDbSql(options: GenerateCriaDbOptions = {}): string {
     '',
   ];
 
-  if (registros.length > 0) {
+  if (registrosProjetos.length > 0) {
     lines.push(
       `INSERT INTO ${tableName} (NomeDoProjeto, Area, Status) VALUES`
     );
-    registros.forEach((projeto, index) => {
+    registrosProjetos.forEach((projeto, index) => {
       const nome = escapeSqlString(projeto.nomeDoProjeto);
       const area = escapeSqlString(projeto.area);
       const statusBit = projeto.status ? 1 : 0;
-      const suffix = index === registros.length - 1 ? ';' : ',';
+      const suffix = index === registrosProjetos.length - 1 ? ';' : ',';
       lines.push(`('${nome}', '${area}', ${statusBit})${suffix}`);
     });
     lines.push('GO', '');
   }
 
+  lines.push(
+    'CREATE TABLE Usuarios (',
+    '    Id INT PRIMARY KEY IDENTITY(1,1),',
+    '    Email VARCHAR(255) NOT NULL UNIQUE,',
+    '    Senha VARCHAR(120) NOT NULL',
+    ');',
+    'GO',
+    ''
+  );
+
+  if (registrosUsuarios.length > 0) {
+    lines.push('INSERT INTO Usuarios (Email, Senha) VALUES');
+    registrosUsuarios.forEach((usuario, index) => {
+      const email = escapeSqlString(usuario.email);
+      const senha = escapeSqlString(usuario.senha);
+      const suffix = index === registrosUsuarios.length - 1 ? ';' : ',';
+      lines.push(`('${email}', '${senha}')${suffix}`);
+    });
+    lines.push('GO', '');
+  }
+
   lines.push(`SELECT Id, NomeDoProjeto, Area, Status FROM ${tableName};`);
+  lines.push('SELECT Id, Email, Senha FROM Usuarios;');
   lines.push('GO', '');
 
   return lines.join('\n');
