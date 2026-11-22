@@ -10,8 +10,10 @@ import {
   X,
   RotateCcw,
   AlertCircle,
+  Download,
 } from 'lucide-react';
 import type { Projeto } from '@/lib/exo-db';
+import { downloadCriaDbSql } from '@/lib/sql-generator';
 
 interface ProjetosTablePanelProps {
   projetos: Projeto[];
@@ -158,14 +160,24 @@ export default function ProjetosTablePanel({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openCreateModal}
-          className="inline-flex items-center gap-2 rounded-md bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#1D4ED8] whitespace-nowrap shrink-0"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span>Novo Projeto</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => downloadCriaDbSql()}
+            className="inline-flex items-center gap-1.5 rounded-md border border-[#CBD5E1] bg-white px-3.5 py-2 text-xs font-medium text-[#0F172A] transition-colors hover:bg-[#F8FAFC] whitespace-nowrap"
+          >
+            <Download className="h-3.5 w-3.5 text-[#475569]" />
+            <span>Baixar cria-db.sql</span>
+          </button>
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="inline-flex items-center gap-2 rounded-md bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#1D4ED8] whitespace-nowrap"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Novo Projeto</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter & Search Toolbar */}

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Check, Copy, ExternalLink, CheckSquare, Square } from 'lucide-react';
+import { Check, Copy, ExternalLink, CheckSquare, Square, Download } from 'lucide-react';
+import { downloadCriaDbSql } from '@/lib/sql-generator';
 
 interface ActivityGuidePanelProps {
   onOpenCodeFile: (fileId: string) => void;
@@ -60,9 +61,9 @@ const GUIDE_STEPS: GuideStep[] = [
   {
     id: 'crud-restante',
     number: '05.',
-    title: 'Implementar e validar os demais métodos CRUD',
+    title: 'Implementar e testar os demais métodos CRUD no Insomnia / Postman',
     summary:
-      'Adicione BuscarPorId (GET /{id}), Cadastrar (POST), Atualizar (PUT /{id}) e Deletar (DELETE /{id}) no repositório e no controlador, e valide cada verbo no Testador da API.',
+      'Adicione BuscarPorId (GET /{id}), Cadastrar (POST), Atualizar (PUT /{id}) e Deletar (DELETE /{id}) no repositório e no controlador. Valide primeiro pelos Formulários da interface e depois importe a coleção no Insomnia ou Postman.',
     fileLinks: [
       { label: 'ProjetoRepository.cs (CRUD)', fileId: 'projeto-repository' },
       { label: 'ProjetosController.cs (CRUD)', fileId: 'projetos-controller' },
@@ -168,8 +169,18 @@ export default function ActivityGuidePanel({
                     </div>
                   )}
 
-                  {(step.fileLinks || step.endpointId) && (
+                  {(step.fileLinks || step.endpointId || step.id === 'ssms') && (
                     <div className="flex flex-wrap items-center gap-3 pt-1">
+                      {step.id === 'ssms' && (
+                        <button
+                          type="button"
+                          onClick={() => downloadCriaDbSql()}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-[#CBD5E1] bg-white px-2.5 py-1 text-xs font-medium text-[#0F172A] hover:bg-[#F8FAFC]"
+                        >
+                          <Download className="h-3 w-3 text-[#475569]" />
+                          <span>Baixar cria-db.sql</span>
+                        </button>
+                      )}
                       {step.fileLinks?.map((link) => (
                         <button
                           key={link.fileId}

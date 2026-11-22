@@ -7,12 +7,22 @@ import {
 
 export const dynamic = 'force-dynamic';
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
 function parseId(rawId: string): number | null {
   if (!/^\d+$/.test(rawId)) {
     return null;
   }
   const parsed = Number(rawId);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
 }
 
 export async function GET(
@@ -25,7 +35,7 @@ export async function GET(
   if (id === null) {
     return NextResponse.json(
       { erro: 'O parâmetro "id" deve ser um número inteiro positivo.' },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
@@ -33,11 +43,11 @@ export async function GET(
   if (!projeto) {
     return NextResponse.json(
       { erro: `Projeto com Id ${id} não encontrado.` },
-      { status: 404 }
+      { status: 404, headers: CORS_HEADERS }
     );
   }
 
-  return NextResponse.json(projeto, { status: 200 });
+  return NextResponse.json(projeto, { status: 200, headers: CORS_HEADERS });
 }
 
 export async function PUT(
@@ -50,7 +60,7 @@ export async function PUT(
   if (id === null) {
     return NextResponse.json(
       { erro: 'O parâmetro "id" deve ser um número inteiro positivo.' },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
@@ -60,14 +70,14 @@ export async function PUT(
   } catch {
     return NextResponse.json(
       { erro: 'JSON inválido no corpo da requisição.' },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return NextResponse.json(
       { erro: 'O corpo da requisição deve ser um objeto JSON válido.' },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
@@ -79,21 +89,21 @@ export async function PUT(
   if (typeof rawNome !== 'string' || rawNome.trim().length === 0) {
     return NextResponse.json(
       { erro: 'O campo "nomeDoProjeto" é obrigatório.' },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
   if (typeof rawArea !== 'string' || rawArea.trim().length === 0) {
     return NextResponse.json(
       { erro: 'O campo "area" é obrigatório.' },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
   if (typeof rawStatus !== 'boolean') {
     return NextResponse.json(
       { erro: 'O campo "status" deve ser booleano (true ou false).' },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
@@ -106,11 +116,11 @@ export async function PUT(
   if (!atualizado) {
     return NextResponse.json(
       { erro: `Projeto com Id ${id} não encontrado.` },
-      { status: 404 }
+      { status: 404, headers: CORS_HEADERS }
     );
   }
 
-  return NextResponse.json(atualizado, { status: 200 });
+  return NextResponse.json(atualizado, { status: 200, headers: CORS_HEADERS });
 }
 
 export async function DELETE(
@@ -123,7 +133,7 @@ export async function DELETE(
   if (id === null) {
     return NextResponse.json(
       { erro: 'O parâmetro "id" deve ser um número inteiro positivo.' },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
@@ -131,9 +141,9 @@ export async function DELETE(
   if (!removido) {
     return NextResponse.json(
       { erro: `Projeto com Id ${id} não encontrado.` },
-      { status: 404 }
+      { status: 404, headers: CORS_HEADERS }
     );
   }
 
-  return new NextResponse(null, { status: 204 });
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
 }

@@ -2,11 +2,8 @@
 
 import React, { useState } from 'react';
 import { Copy, Check, Download, FileCode2, Database } from 'lucide-react';
-import {
-  EXO_FILE_TEMPLATES,
-  CRIA_DB_SQL,
-  type CodeStage,
-} from '@/lib/exo-templates';
+import { EXO_FILE_TEMPLATES, type CodeStage } from '@/lib/exo-templates';
+import { downloadCriaDbSql } from '@/lib/sql-generator';
 
 interface CodeExplorerPanelProps {
   selectedFileId: string;
@@ -50,6 +47,10 @@ export default function CodeExplorerPanel({
   }
 
   function handleDownloadCurrent() {
+    if (activeFile.id === 'cria-db') {
+      downloadCriaDbSql();
+      return;
+    }
     downloadTextFile(activeFile.fileName, codeContent);
   }
 
@@ -91,7 +92,7 @@ export default function CodeExplorerPanel({
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={() => downloadTextFile('cria-db.sql', CRIA_DB_SQL)}
+            onClick={() => downloadCriaDbSql()}
             className="inline-flex items-center gap-1.5 rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-medium text-[#0F172A] hover:bg-[#F8FAFC] whitespace-nowrap"
           >
             <Database className="h-3.5 w-3.5 text-[#475569]" />

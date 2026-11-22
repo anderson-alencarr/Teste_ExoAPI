@@ -10,11 +10,12 @@ import ApiTesterPanel, {
   DEFAULT_POST_BODY,
   type HttpMethod,
 } from '@/components/api-tester-panel';
+import ProjetoCrudForms from '@/components/projeto-crud-forms';
 import ProjetosTablePanel from '@/components/projetos-table-panel';
 import CodeExplorerPanel from '@/components/code-explorer-panel';
 import ActivityGuidePanel from '@/components/activity-guide-panel';
 
-type ActiveView = 'tester' | 'tabela' | 'codigo' | 'guia';
+type ActiveView = 'tester' | 'formularios' | 'tabela' | 'codigo' | 'guia';
 
 interface ExoWorkbenchProps {
   initialProjetos: Projeto[];
@@ -129,6 +130,7 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
 
   const navItems: { id: ActiveView; label: string }[] = [
     { id: 'tester', label: 'Testador API' },
+    { id: 'formularios', label: 'Formulários' },
     { id: 'tabela', label: 'Tabela SQL' },
     { id: 'codigo', label: 'Código C#' },
     { id: 'guia', label: 'Guia SSMS' },
@@ -149,7 +151,7 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
               ExoApi Workbench
             </button>
 
-            {/* Zone 2: 4 concise single-line nav links */}
+            {/* Zone 2: 5 concise single-line nav links */}
             <nav
               aria-label="Navegação principal"
               className="hidden md:flex items-center gap-6"
@@ -264,6 +266,61 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
                 </div>
               )}
 
+              {activeView === 'formularios' && (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
+                    <h2 className="text-xs font-semibold text-[#0F172A]">
+                      Operações via Formulário
+                    </h2>
+                    <ul className="mt-3 space-y-2 text-xs text-[#475569]">
+                      <li className="flex items-center justify-between">
+                        <span className="font-mono font-semibold text-[#1D4ED8]">
+                          POST
+                        </span>
+                        <span>Adicionar projeto</span>
+                      </li>
+                      <li className="flex items-center justify-between">
+                        <span className="font-mono font-semibold text-[#B45309]">
+                          PUT
+                        </span>
+                        <span>Atualizar por Id</span>
+                      </li>
+                      <li className="flex items-center justify-between">
+                        <span className="font-mono font-semibold text-[#B91C1C]">
+                          DELETE
+                        </span>
+                        <span>Remover por Id</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-semibold text-[#0F172A]">
+                        Registros Atuais
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setActiveView('tabela')}
+                        className="text-xs font-medium text-[#2563EB] hover:underline"
+                      >
+                        Abrir tabela
+                      </button>
+                    </div>
+                    <div className="mt-2.5 flex items-center gap-2 text-xs text-[#475569]">
+                      <span className="font-mono tabular-nums font-semibold text-[#0F172A]">
+                        {projetos.length}
+                      </span>
+                      <span>projetos</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="font-mono tabular-nums text-[#16A34A]">
+                        {ativosCount} ativos
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {activeView === 'tabela' && (
                 <div className="space-y-4">
                   <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
@@ -359,7 +416,7 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
                     Resumo da Atividade 3
                   </h2>
                   <p className="text-xs leading-relaxed text-[#475569]">
-                    Objetivo: conectar a Web API Exo.WebApi ao banco SQL Server ExoApi e validar o método GET Listar e o CRUD de Projetos no navegador.
+                    Objetivo: conectar a Web API Exo.WebApi ao banco SQL Server ExoApi e validar o método GET Listar e o CRUD de Projetos no navegador, nos formulários e no Insomnia/Postman.
                   </p>
                   <div className="border-t border-[#F1F5F9] pt-3 space-y-2 text-xs">
                     <button
@@ -368,6 +425,13 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
                       className="block text-left font-medium text-[#2563EB] hover:underline"
                     >
                       Abrir script cria-db.sql
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveView('formularios')}
+                      className="block text-left font-medium text-[#2563EB] hover:underline"
+                    >
+                      Abrir Formulários CRUD
                     </button>
                     <button
                       type="button"
@@ -427,6 +491,13 @@ export default function ExoWorkbench({ initialProjetos }: ExoWorkbenchProps) {
                   onChangeTargetId={setTargetId}
                   requestBody={requestBody}
                   onChangeRequestBody={setRequestBody}
+                  onDatabaseMutated={refreshProjetos}
+                />
+              )}
+
+              {activeView === 'formularios' && (
+                <ProjetoCrudForms
+                  projetos={projetos}
                   onDatabaseMutated={refreshProjetos}
                 />
               )}

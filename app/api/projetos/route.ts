@@ -3,6 +3,12 @@ import { cadastrarProjeto, listarProjetos } from '@/lib/exo-db';
 
 export const dynamic = 'force-dynamic';
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
 function extractPayload(body: unknown): {
   nomeDoProjeto?: string;
   area?: string;
@@ -35,9 +41,13 @@ function extractPayload(body: unknown): {
   };
 }
 
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
 export async function GET() {
   const projetos = listarProjetos();
-  return NextResponse.json(projetos, { status: 200 });
+  return NextResponse.json(projetos, { status: 200, headers: CORS_HEADERS });
 }
 
 export async function POST(req: NextRequest) {
@@ -47,7 +57,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json(
       { erro: 'JSON inválido no corpo da requisição.' },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
@@ -55,7 +65,7 @@ export async function POST(req: NextRequest) {
   if (parsed.error || !parsed.nomeDoProjeto || !parsed.area) {
     return NextResponse.json(
       { erro: parsed.error ?? 'Dados inválidos para cadastro.' },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
@@ -65,5 +75,5 @@ export async function POST(req: NextRequest) {
     status: parsed.status ?? true,
   });
 
-  return NextResponse.json(criado, { status: 201 });
+  return NextResponse.json(criado, { status: 201, headers: CORS_HEADERS });
 }

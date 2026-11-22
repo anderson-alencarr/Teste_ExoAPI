@@ -1,3 +1,5 @@
+import { generateCriaDbSql } from '@/lib/sql-generator';
+
 export type CodeStage = 'etapa1' | 'etapa2';
 
 export interface ExoFileTemplate {
@@ -11,34 +13,7 @@ export interface ExoFileTemplate {
   getCode: (stage: CodeStage) => string;
 }
 
-export const CRIA_DB_SQL = `-- Script de criação do banco de dados ExoApi para SQL Server Management Studio (SSMS)
--- Execute este script completo no SSMS antes de iniciar a API com dotnet run.
-
-CREATE DATABASE ExoApi;
-GO
-
-USE ExoApi;
-GO
-
-CREATE TABLE Projetos (
-    Id INT PRIMARY KEY IDENTITY(1,1),
-    NomeDoProjeto VARCHAR(150) NOT NULL,
-    Area VARCHAR(150) NOT NULL,
-    Status BIT NOT NULL
-);
-GO
-
-INSERT INTO Projetos (NomeDoProjeto, Area, Status) VALUES
-('Projeto A — Obra Residencial', 'Construção Civil', 1),
-('Projeto B — Portal ExoApi', 'Tecnologia da Informação', 1),
-('Projeto C — Automação Industrial', 'Mecatrônica', 0),
-('Projeto D — Painel Logístico', 'Supply Chain', 1),
-('Projeto E — Eficiência Energética', 'Engenharia Elétrica', 0);
-GO
-
-SELECT Id, NomeDoProjeto, Area, Status FROM Projetos;
-GO
-`;
+export const CRIA_DB_SQL = generateCriaDbSql();
 
 export const EXO_FILE_TEMPLATES: ExoFileTemplate[] = [
   {

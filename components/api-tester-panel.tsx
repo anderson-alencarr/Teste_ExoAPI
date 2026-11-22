@@ -9,6 +9,7 @@ import {
   RotateCcw,
   Trash2,
   AlertCircle,
+  Terminal,
 } from 'lucide-react';
 import type { Projeto } from '@/lib/exo-db';
 
@@ -128,6 +129,38 @@ function statusColorClass(status: number): string {
   return 'text-[#DC2626]';
 }
 
+function parseBodyFields(body: string): {
+  nomeDoProjeto: string;
+  area: string;
+  status: boolean;
+} {
+  try {
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+    return {
+      nomeDoProjeto:
+        typeof parsed.nomeDoProjeto === 'string'
+          ? parsed.nomeDoProjeto
+          : typeof parsed.NomeDoProjeto === 'string'
+          ? parsed.NomeDoProjeto
+          : '',
+      area:
+        typeof parsed.area === 'string'
+          ? parsed.area
+          : typeof parsed.Area === 'string'
+          ? parsed.Area
+          : '',
+      status:
+        typeof parsed.status === 'boolean'
+          ? parsed.status
+          : typeof parsed.Status === 'boolean'
+          ? parsed.Status
+          : true,
+    };
+  } catch {
+    return { nomeDoProjeto: '', area: '', status: true };
+  }
+}
+
 async function dispatchApiRequest(params: {
   url: string;
   method: HttpMethod;
@@ -193,9 +226,11 @@ export default function ApiTesterPanel({
     ENDPOINT_PRESETS.find((item) => item.id === selectedEndpointId) ??
     ENDPOINT_PRESETS[0];
 
+  const [bodyInputMode, setBodyInputMode] = useState<'form' | 'json'>('form');
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState<boolean>(false);
   const [copiedResponse, setCopiedResponse] = useState<boolean>(false);
+  const [copiedCurl, setCopiedCurl] = useState<boolean>(false);
 
   const [responseState, setResponseState] = useState<{
     status: number;
@@ -220,6 +255,19 @@ export default function ApiTesterPanel({
   const resolvedUrl = activePreset.requiresId
     ? `/api/projetos/${targetId.trim() || '1'}`
     : '/api/projetos';
+
+  const formFields = parseBodyFields(requestBody);
+
+  function updateFormField(
+    patch: Partial<{ nomeDoProjeto: string; area: string; status: boolean }>
+  ) {
+    const next = {
+      ...formFields,
+      ...patch,
+    };
+    onChangeRequestBody(JSON.stringify(next, null, 2));
+    if (jsonError) setJsonError(null);
+  }
 
   function handleSelectEndpointInternal(id: string) {
     setJsonError(null);
@@ -310,13 +358,31 @@ export default function ApiTesterPanel({
   }
 
   async function handleCopyResponse() {
-    if (!responseState?.bodyText) return;
+    if (!responseState.bodyText) return;
     try {
       await navigator.clipboard.writeText(responseState.bodyText);
       setCopiedResponse(true);
       setTimeout(() => setCopiedResponse(false), 1800);
     } catch {
       // Clipboard blocked in some contexts
+    }
+  }
+
+  async function handleCopyCurl() {
+    const origin =
+      typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+    const fullUrl = `${origin}${resolvedUrl}`;
+    const curlParts = [`curl -X ${activePreset.method} "${fullUrl}"`];
+    if (activePreset.requiresBody) {
+      curlParts.push(`-H "Content-Type: application/json"`);
+      curlParts.push(`-d '${requestBody.replace(/\n/g, ' ')}'`);
+    }
+    try {
+      await navigator.clipboard.writeText(curlParts.join(' \\\n  '));
+      setCopiedCurl(true);
+      setTimeout(() => setCopiedCurl(false), 1800);
+    } catch {
+      // Ignore clipboard error
     }
   }
 
@@ -345,15 +411,35 @@ export default function ApiTesterPanel({
           </p>
         </div>
 
-        <a
-          href="/api/projetos"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 rounded-md border border-[#CBD5E1] bg-white px-3.5 py-2 text-xs font-medium text-[#0F172A] transition-colors hover:bg-[#F1F5F9] whitespace-nowrap shrink-0"
-        >
-          <span>Abrir /api/projetos no navegador</span>
-          <ExternalLink className="h-3.5 w-3.5 text-[#475569]" />
-        </a>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleCopyCurl}
+            className="inline-flex items-center gap-1.5 rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-medium text-[#334155] transition-colors hover:bg-[#F1F5F9] whitespace-nowrap"
+          >
+            {copiedCurl ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-[#16A34A]" />
+                <span>cURL copiado</span>
+              </>
+            ) : (
+              <>
+                <Terminal className="h-3.5 w-3.5 text-[#475569]" />
+                <span>Copiar cURL (Insomnia)</span>
+              </>
+            )}
+          </button>
+
+          <a
+            href="/api/projetos"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-md border border-[#CBD5E1] bg-white px-3.5 py-2 text-xs font-medium text-[#0F172A] transition-colors hover:bg-[#F1F5F9] whitespace-nowrap"
+          >
+            <span>Abrir /api/projetos no navegador</span>
+            <ExternalLink className="h-3.5 w-3.5 text-[#475569]" />
+          </a>
+        </div>
       </div>
 
       {/* Mobile endpoint selector (desktop uses sidebar) */}
@@ -449,27 +535,45 @@ export default function ApiTesterPanel({
           </button>
         </div>
 
-        {/* Request Body Editor for POST / PUT */}
+        {/* Request Body Editor (Form or Raw JSON) for POST / PUT */}
         {activePreset.requiresBody && (
           <div className="mt-4 border-t border-[#E2E8F0] pt-4">
-            <div className="mb-2 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3 text-xs text-[#475569]">
-                <span className="font-medium text-[#0F172A]">
-                  Corpo JSON (Body)
-                </span>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono text-[#64748B]">
-                  application/json
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-1 rounded-md bg-[#F1F5F9] p-1">
                 <button
                   type="button"
-                  onClick={handleFormatJson}
-                  className="text-xs font-medium text-[#2563EB] hover:underline whitespace-nowrap"
+                  onClick={() => setBodyInputMode('form')}
+                  className={`rounded px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap ${
+                    bodyInputMode === 'form'
+                      ? 'bg-white text-[#0F172A] shadow-xs'
+                      : 'text-[#475569] hover:text-[#0F172A]'
+                  }`}
                 >
-                  Formatar JSON
+                  Formulário
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setBodyInputMode('json')}
+                  className={`rounded px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap ${
+                    bodyInputMode === 'json'
+                      ? 'bg-white text-[#0F172A] shadow-xs'
+                      : 'text-[#475569] hover:text-[#0F172A]'
+                  }`}
+                >
+                  JSON Bruto
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {bodyInputMode === 'json' && (
+                  <button
+                    type="button"
+                    onClick={handleFormatJson}
+                    className="text-xs font-medium text-[#2563EB] hover:underline whitespace-nowrap"
+                  >
+                    Formatar JSON
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -484,16 +588,75 @@ export default function ApiTesterPanel({
               </div>
             </div>
 
-            <textarea
-              value={requestBody}
-              onChange={(e) => {
-                onChangeRequestBody(e.target.value);
-                if (jsonError) setJsonError(null);
-              }}
-              rows={7}
-              spellCheck={false}
-              className="w-full rounded-md border border-[#CBD5E1] bg-[#F8FAFC] p-3 font-mono text-xs leading-relaxed text-[#0F172A] focus:border-[#2563EB] focus:bg-white focus:outline-none"
-            />
+            {bodyInputMode === 'form' ? (
+              <div className="grid grid-cols-1 gap-4 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] p-4 sm:grid-cols-3">
+                <div>
+                  <label
+                    htmlFor="tester-nome-input"
+                    className="mb-1.5 block text-xs font-medium text-[#334155]"
+                  >
+                    NomeDoProjeto
+                  </label>
+                  <input
+                    id="tester-nome-input"
+                    type="text"
+                    value={formFields.nomeDoProjeto}
+                    onChange={(e) =>
+                      updateFormField({ nomeDoProjeto: e.target.value })
+                    }
+                    placeholder="Nome do projeto"
+                    className="w-full rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-xs text-[#0F172A] focus:border-[#2563EB] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="tester-area-input"
+                    className="mb-1.5 block text-xs font-medium text-[#334155]"
+                  >
+                    Area
+                  </label>
+                  <input
+                    id="tester-area-input"
+                    type="text"
+                    value={formFields.area}
+                    onChange={(e) => updateFormField({ area: e.target.value })}
+                    placeholder="Área do projeto"
+                    className="w-full rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-xs text-[#0F172A] focus:border-[#2563EB] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <span className="mb-1.5 block text-xs font-medium text-[#334155]">
+                    Status
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={formFields.status}
+                    onClick={() =>
+                      updateFormField({ status: !formFields.status })
+                    }
+                    className={`w-full rounded-md border px-3 py-2 text-left text-xs font-semibold transition-colors ${
+                      formFields.status
+                        ? 'border-[#16A34A] bg-[#F0FDF4] text-[#15803D]'
+                        : 'border-[#CBD5E1] bg-white text-[#475569]'
+                    }`}
+                  >
+                    {formFields.status ? 'Ativo (true)' : 'Inativo (false)'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <textarea
+                value={requestBody}
+                onChange={(e) => {
+                  onChangeRequestBody(e.target.value);
+                  if (jsonError) setJsonError(null);
+                }}
+                rows={7}
+                spellCheck={false}
+                className="w-full rounded-md border border-[#CBD5E1] bg-[#F8FAFC] p-3 font-mono text-xs leading-relaxed text-[#0F172A] focus:border-[#2563EB] focus:bg-white focus:outline-none"
+              />
+            )}
 
             {jsonError && (
               <div className="mt-2 flex items-center gap-2 text-xs font-medium text-[#DC2626]">

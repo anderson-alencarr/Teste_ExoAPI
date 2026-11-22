@@ -1,56 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  INITIAL_PROJETOS_SEED,
+  type Projeto,
+  type ProjetoInput,
+} from '@/lib/exo-seed';
 
-export interface Projeto {
-  id: number;
-  nomeDoProjeto: string;
-  area: string;
-  status: boolean;
-}
-
-export interface ProjetoInput {
-  nomeDoProjeto: string;
-  area: string;
-  status: boolean;
-}
+export { INITIAL_PROJETOS_SEED, type Projeto, type ProjetoInput };
 
 interface StoreState {
   nextId: number;
   projetos: Projeto[];
 }
-
-export const INITIAL_PROJETOS_SEED: Projeto[] = [
-  {
-    id: 1,
-    nomeDoProjeto: 'Projeto A — Obra Residencial',
-    area: 'Construção Civil',
-    status: true,
-  },
-  {
-    id: 2,
-    nomeDoProjeto: 'Projeto B — Portal ExoApi',
-    area: 'Tecnologia da Informação',
-    status: true,
-  },
-  {
-    id: 3,
-    nomeDoProjeto: 'Projeto C — Automação Industrial',
-    area: 'Mecatrônica',
-    status: false,
-  },
-  {
-    id: 4,
-    nomeDoProjeto: 'Projeto D — Painel Logístico',
-    area: 'Supply Chain',
-    status: true,
-  },
-  {
-    id: 5,
-    nomeDoProjeto: 'Projeto E — Eficiência Energética',
-    area: 'Engenharia Elétrica',
-    status: false,
-  },
-];
 
 const DB_FILE_PATH = path.join('/tmp', 'exoapi-projetos-db.json');
 
