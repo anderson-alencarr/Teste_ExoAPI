@@ -9,6 +9,7 @@ import ApiTesterPanel, {
   PROJETOS_PRESETS,
   USUARIOS_PRESETS,
   DEFAULT_POST_BODY,
+  DEFAULT_USER_LOGIN_BODY,
   DEFAULT_USER_POST_BODY,
   type ApiResource,
   type HttpMethod,
@@ -52,10 +53,22 @@ export default function ExoWorkbench({
   const [isResetting, setIsResetting] = useState(false);
   const [feedbackBanner, setFeedbackBanner] = useState<string | null>(null);
 
+  // In-memory JWT token state (never stored in localStorage/sessionStorage)
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [authEmail, setAuthEmail] = useState<string | null>(null);
+
   const [selectedEndpointId, setSelectedEndpointId] = useState<string>('listar');
   const [targetId, setTargetId] = useState<string>('1');
   const [requestBody, setRequestBody] = useState<string>(DEFAULT_POST_BODY);
   const [selectedFileId, setSelectedFileId] = useState<string>('cria-db');
+
+  const handleAuthChange = useCallback(
+    (token: string | null, email: string | null) => {
+      setAuthToken(token);
+      setAuthEmail(email);
+    },
+    []
+  );
 
   const refreshDatabase = useCallback(async () => {
     setIsLoadingTable(true);
@@ -78,9 +91,9 @@ export default function ExoWorkbench({
   function handleChangeResource(resource: ApiResource) {
     setActiveResource(resource);
     if (resource === 'usuarios') {
-      setSelectedEndpointId('usuarios-listar');
+      setSelectedEndpointId('usuarios-login');
       setTargetId(usuarios[0] ? String(usuarios[0].id) : '1');
-      setRequestBody(DEFAULT_USER_POST_BODY);
+      setRequestBody(DEFAULT_USER_LOGIN_BODY);
     } else {
       setSelectedEndpointId('listar');
       setTargetId(projetos[0] ? String(projetos[0].id) : '1');
@@ -92,6 +105,8 @@ export default function ExoWorkbench({
     setSelectedEndpointId(endpointId);
     if (endpointId === 'cadastrar') {
       setRequestBody(DEFAULT_POST_BODY);
+    } else if (endpointId === 'usuarios-login') {
+      setRequestBody(DEFAULT_USER_LOGIN_BODY);
     } else if (endpointId === 'usuarios-cadastrar') {
       setRequestBody(DEFAULT_USER_POST_BODY);
     } else if (endpointId === 'atualizar') {
@@ -122,7 +137,7 @@ export default function ExoWorkbench({
           JSON.stringify(
             {
               email: match.email,
-              senha: match.senha,
+              senha: '',
             },
             null,
             2
@@ -148,6 +163,8 @@ export default function ExoWorkbench({
         } else {
           await refreshDatabase();
         }
+        setAuthToken(null);
+        setAuthEmail(null);
         setFeedbackBanner(
           'Banco restaurado para os registros iniciais de Projetos e Usuários (cria-db.sql).'
         );
@@ -293,7 +310,7 @@ export default function ExoWorkbench({
               {activeView === 'tester' && (
                 <div>
                   <h2 className="mb-2.5 text-xs font-semibold text-[#475569]">
-                    Endpoints ({activeResource === 'usuarios' ? 'Usuários' : 'Projetos'})
+                    Endpoints ({activeResource === 'usuarios' ? 'Usuários & JWT' : 'Projetos'})
                   </h2>
                   <div className="divide-y divide-[#F1F5F9] rounded-lg border border-[#E2E8F0] bg-white">
                     {sidebarEndpoints.map((preset) => {
@@ -338,6 +355,14 @@ export default function ExoWorkbench({
                       Operações via Formulário
                     </h2>
                     <ul className="mt-3 space-y-2 text-xs text-[#475569]">
+                      {activeResource === 'usuarios' && (
+                        <li className="flex items-center justify-between">
+                          <span className="font-mono font-semibold text-[#1D4ED8]">
+                            POST
+                          </span>
+                          <span>Login JWT (/api/usuarios)</span>
+                        </li>
+                      )}
                       <li className="flex items-center justify-between">
                         <span className="font-mono font-semibold text-[#1D4ED8]">
                           POST
@@ -351,13 +376,19 @@ export default function ExoWorkbench({
                         <span className="font-mono font-semibold text-[#B45309]">
                           PUT
                         </span>
-                        <span>Atualizar por Id</span>
+                        <span>
+                          Atualizar por Id
+                          {activeResource === 'usuarios' ? ' (JWT)' : ''}
+                        </span>
                       </li>
                       <li className="flex items-center justify-between">
                         <span className="font-mono font-semibold text-[#B91C1C]">
                           DELETE
                         </span>
-                        <span>Remover por Id</span>
+                        <span>
+                          Remover por Id
+                          {activeResource === 'usuarios' ? ' (JWT)' : ''}
+                        </span>
                       </li>
                     </ul>
                   </div>
@@ -430,7 +461,7 @@ export default function ExoWorkbench({
                         </div>
                         <div className="flex items-center justify-between">
                           <dt className="text-[#0F172A]">Senha</dt>
-                          <dd className="text-[#64748B]">VARCHAR</dd>
+                          <dd className="text-[#64748B]">VARCHAR (hash)</dd>
                         </div>
                       </dl>
                     )}
@@ -508,10 +539,10 @@ export default function ExoWorkbench({
               {activeView === 'guia' && (
                 <div className="rounded-lg border border-[#E2E8F0] bg-white p-4 space-y-3">
                   <h2 className="text-xs font-semibold text-[#0F172A]">
-                    Atividades 3 e 5 (ExoApi)
+                    Atividades 3, 5 e 6 (ExoApi)
                   </h2>
                   <p className="text-xs leading-relaxed text-[#475569]">
-                    Implementação completa da estrutura Web API com os CRUDs de Projetos (/api/projetos) e Usuários (/api/usuarios).
+                    Implementação completa da Web API com CRUDs de Projetos e Usuários, autenticação JWT Bearer e política CORS.
                   </p>
                   <div className="border-t border-[#F1F5F9] pt-3 space-y-2 text-xs">
                     <button
@@ -523,6 +554,13 @@ export default function ExoWorkbench({
                     </button>
                     <button
                       type="button"
+                      onClick={() => handleOpenCodeFile('program-cs')}
+                      className="block text-left font-medium text-[#2563EB] hover:underline"
+                    >
+                      Abrir Program.cs (JWT + CORS)
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleOpenCodeFile('usuarios-controller')}
                       className="block text-left font-medium text-[#2563EB] hover:underline"
                     >
@@ -530,12 +568,10 @@ export default function ExoWorkbench({
                     </button>
                     <button
                       type="button"
-                      onClick={() =>
-                        handleOpenTesterEndpoint('usuarios-listar')
-                      }
+                      onClick={() => handleOpenTesterEndpoint('usuarios-login')}
                       className="block text-left font-medium text-[#2563EB] hover:underline"
                     >
-                      Testar GET /api/usuarios
+                      Testar Login JWT (POST /api/usuarios)
                     </button>
                   </div>
                 </div>
@@ -543,7 +579,7 @@ export default function ExoWorkbench({
 
               {/* Compact always-available database snapshot in sidebar */}
               {activeView === 'tester' && (
-                <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
+                <div className="rounded-lg border border-[#E2E8F0] bg-white p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-semibold text-[#0F172A]">
                       Banco ExoApi
@@ -556,7 +592,7 @@ export default function ExoWorkbench({
                       Ver tabelas
                     </button>
                   </div>
-                  <div className="mt-2.5 flex items-center gap-2 text-xs text-[#475569]">
+                  <div className="flex items-center gap-2 text-xs text-[#475569]">
                     <span className="font-mono tabular-nums font-semibold text-[#0F172A]">
                       {projetos.length}
                     </span>
@@ -566,6 +602,18 @@ export default function ExoWorkbench({
                       {usuarios.length}
                     </span>
                     <span>usuários</span>
+                  </div>
+                  <div className="border-t border-[#F1F5F9] pt-2 text-[11px] text-[#64748B]">
+                    Sessão JWT:{' '}
+                    <span
+                      className={
+                        authToken
+                          ? 'font-medium text-[#16A34A]'
+                          : 'text-[#64748B]'
+                      }
+                    >
+                      {authToken ? authEmail ?? 'Autenticado' : 'Não autenticado'}
+                    </span>
                   </div>
                 </div>
               )}
@@ -592,6 +640,9 @@ export default function ExoWorkbench({
                   onChangeTargetId={setTargetId}
                   requestBody={requestBody}
                   onChangeRequestBody={setRequestBody}
+                  authToken={authToken}
+                  authEmail={authEmail}
+                  onAuthChange={handleAuthChange}
                   onDatabaseMutated={refreshDatabase}
                 />
               )}
@@ -619,7 +670,7 @@ export default function ExoWorkbench({
                           : 'text-[#475569] hover:text-[#0F172A]'
                       }`}
                     >
-                      Usuários (/api/usuarios)
+                      Usuários &amp; JWT (/api/usuarios)
                     </button>
                   </div>
 
@@ -631,6 +682,9 @@ export default function ExoWorkbench({
                   ) : (
                     <UsuarioCrudForms
                       usuarios={usuarios}
+                      authToken={authToken}
+                      authEmail={authEmail}
+                      onAuthChange={handleAuthChange}
                       onDatabaseMutated={refreshDatabase}
                     />
                   )}
@@ -675,6 +729,7 @@ export default function ExoWorkbench({
                   ) : (
                     <UsuariosTablePanel
                       usuarios={usuarios}
+                      authToken={authToken}
                       isLoading={isLoadingTable}
                       onRefresh={refreshDatabase}
                       onResetDatabase={handleResetDatabase}

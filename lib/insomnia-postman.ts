@@ -13,9 +13,9 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
         parentId: null,
         modified: now,
         created: now,
-        name: 'ExoApi — Projetos & Usuários CRUD',
+        name: 'ExoApi — Projetos, Usuários & Login JWT',
         description:
-          'Coleção completa de testes da Web API ExoApi (Projetos e Usuários)',
+          'Coleção completa de testes da Web API ExoApi com Login JWT e CORS',
         scope: 'collection',
         _type: 'workspace',
       },
@@ -28,6 +28,7 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
         data: {
           base_url: cleanBase,
           dotnet_url: 'http://localhost:5000',
+          bearer_token: 'COLE_SEU_TOKEN_AQUI',
         },
         _type: 'environment',
       },
@@ -44,7 +45,7 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
         parentId: 'wrk_exoapi',
         modified: now,
         created: now,
-        name: 'Usuarios',
+        name: 'Usuarios & Login JWT',
         _type: 'request_group',
       },
       {
@@ -88,7 +89,7 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
           mimeType: 'application/json',
           text: JSON.stringify(
             {
-              nomeDoProjeto: 'Projeto F — Plataforma Mobile',
+              nomeDoProjeto: 'Projeto D - Plataforma Mobile',
               area: 'Desenvolvimento Mobile',
               status: true,
             },
@@ -113,7 +114,7 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
           mimeType: 'application/json',
           text: JSON.stringify(
             {
-              nomeDoProjeto: 'Projeto A — Obra Residencial Atualizada',
+              nomeDoProjeto: 'Projeto A - Obras BR Atualizado',
               area: 'Construção Civil',
               status: true,
             },
@@ -140,6 +141,31 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
         _type: 'request',
       },
       {
+        _id: 'req_login_usuario',
+        parentId: 'fld_usuarios',
+        modified: now,
+        created: now,
+        url: '{{ _.base_url }}/api/usuarios',
+        name: 'POST Login (Gerar Token JWT)',
+        description:
+          'Autentica e retorna o token JWT para usar como Bearer em PUT e DELETE',
+        method: 'POST',
+        body: {
+          mimeType: 'application/json',
+          text: JSON.stringify(
+            {
+              email: 'email@sp.br',
+              senha: '1234',
+            },
+            null,
+            2
+          ),
+        },
+        parameters: [],
+        headers: [{ name: 'Content-Type', value: 'application/json' }],
+        _type: 'request',
+      },
+      {
         _id: 'req_listar_usuarios',
         parentId: 'fld_usuarios',
         modified: now,
@@ -158,7 +184,7 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
         parentId: 'fld_usuarios',
         modified: now,
         created: now,
-        url: '{{ _.base_url }}/api/usuarios/1',
+        url: '{{ _.base_url }}/api/usuarios/2',
         name: 'GET Buscar Usuário por Id',
         description: 'Busca um usuário pelo Id (BuscarPorId)',
         method: 'GET',
@@ -172,9 +198,9 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
         parentId: 'fld_usuarios',
         modified: now,
         created: now,
-        url: '{{ _.base_url }}/api/usuarios',
+        url: '{{ _.base_url }}/api/usuarios/cadastrar',
         name: 'POST Cadastrar Usuário',
-        description: 'Insere um novo usuário (Cadastrar)',
+        description: 'Cadastra um novo usuário no repositório',
         method: 'POST',
         body: {
           mimeType: 'application/json',
@@ -196,16 +222,21 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
         parentId: 'fld_usuarios',
         modified: now,
         created: now,
-        url: '{{ _.base_url }}/api/usuarios/3',
-        name: 'PUT Atualizar Usuário',
-        description: 'Atualiza um usuário pelo Id (Atualizar)',
+        url: '{{ _.base_url }}/api/usuarios/2',
+        name: 'PUT Atualizar Usuário (Bearer)',
+        description:
+          'Atualiza um usuário pelo Id (requer Authorization: Bearer Token)',
         method: 'PUT',
+        authentication: {
+          type: 'bearer',
+          token: '{{ _.bearer_token }}',
+        },
         body: {
           mimeType: 'application/json',
           text: JSON.stringify(
             {
-              email: 'email_quatro@sp.br',
-              senha: '4321',
+              email: 'email@sp.br',
+              senha: 'aaaaa1234',
             },
             null,
             2
@@ -220,10 +251,15 @@ export function buildInsomniaCollectionJson(baseUrl: string): string {
         parentId: 'fld_usuarios',
         modified: now,
         created: now,
-        url: '{{ _.base_url }}/api/usuarios/3',
-        name: 'DELETE Remover Usuário',
-        description: 'Remove um usuário pelo Id (Deletar)',
+        url: '{{ _.base_url }}/api/usuarios/2',
+        name: 'DELETE Remover Usuário (Bearer)',
+        description:
+          'Remove um usuário pelo Id (requer Authorization: Bearer Token)',
         method: 'DELETE',
+        authentication: {
+          type: 'bearer',
+          token: '{{ _.bearer_token }}',
+        },
         body: {},
         parameters: [],
         headers: [],
@@ -240,15 +276,16 @@ export function buildPostmanCollectionJson(baseUrl: string): string {
 
   const collection = {
     info: {
-      name: 'ExoApi — Projetos & Usuários CRUD',
+      name: 'ExoApi — Projetos, Usuários & Login JWT',
       description:
-        'Coleção Postman v2.1 para testar os endpoints GET, POST, PUT e DELETE de /api/projetos e /api/usuarios.',
+        'Coleção Postman v2.1 para testar /api/projetos, Login JWT em POST /api/usuarios e rotas protegidas PUT/DELETE.',
       schema:
         'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
     },
     variable: [
       { key: 'base_url', value: cleanBase, type: 'string' },
       { key: 'dotnet_url', value: 'http://localhost:5000', type: 'string' },
+      { key: 'bearer_token', value: 'COLE_SEU_TOKEN_AQUI', type: 'string' },
     ],
     item: [
       {
@@ -287,7 +324,7 @@ export function buildPostmanCollectionJson(baseUrl: string): string {
                 mode: 'raw',
                 raw: JSON.stringify(
                   {
-                    nomeDoProjeto: 'Projeto F — Plataforma Mobile',
+                    nomeDoProjeto: 'Projeto D - Plataforma Mobile',
                     area: 'Desenvolvimento Mobile',
                     status: true,
                   },
@@ -311,7 +348,7 @@ export function buildPostmanCollectionJson(baseUrl: string): string {
                 mode: 'raw',
                 raw: JSON.stringify(
                   {
-                    nomeDoProjeto: 'Projeto A — Obra Residencial Atualizada',
+                    nomeDoProjeto: 'Projeto A - Obras BR Atualizado',
                     area: 'Construção Civil',
                     status: true,
                   },
@@ -341,8 +378,31 @@ export function buildPostmanCollectionJson(baseUrl: string): string {
         ],
       },
       {
-        name: 'Usuarios',
+        name: 'Usuarios & Login JWT',
         item: [
+          {
+            name: 'POST Login (Gerar Token JWT)',
+            request: {
+              method: 'POST',
+              header: [{ key: 'Content-Type', value: 'application/json' }],
+              body: {
+                mode: 'raw',
+                raw: JSON.stringify(
+                  {
+                    email: 'email@sp.br',
+                    senha: '1234',
+                  },
+                  null,
+                  2
+                ),
+              },
+              url: {
+                raw: '{{base_url}}/api/usuarios',
+                host: ['{{base_url}}'],
+                path: ['api', 'usuarios'],
+              },
+            },
+          },
           {
             name: 'GET Listar Usuários',
             request: {
@@ -361,9 +421,9 @@ export function buildPostmanCollectionJson(baseUrl: string): string {
               method: 'GET',
               header: [],
               url: {
-                raw: '{{base_url}}/api/usuarios/1',
+                raw: '{{base_url}}/api/usuarios/2',
                 host: ['{{base_url}}'],
-                path: ['api', 'usuarios', '1'],
+                path: ['api', 'usuarios', '2'],
               },
             },
           },
@@ -384,44 +444,56 @@ export function buildPostmanCollectionJson(baseUrl: string): string {
                 ),
               },
               url: {
-                raw: '{{base_url}}/api/usuarios',
+                raw: '{{base_url}}/api/usuarios/cadastrar',
                 host: ['{{base_url}}'],
-                path: ['api', 'usuarios'],
+                path: ['api', 'usuarios', 'cadastrar'],
               },
             },
           },
           {
-            name: 'PUT Atualizar Usuário',
+            name: 'PUT Atualizar Usuário (Bearer)',
             request: {
+              auth: {
+                type: 'bearer',
+                bearer: [
+                  { key: 'token', value: '{{bearer_token}}', type: 'string' },
+                ],
+              },
               method: 'PUT',
               header: [{ key: 'Content-Type', value: 'application/json' }],
               body: {
                 mode: 'raw',
                 raw: JSON.stringify(
                   {
-                    email: 'email_quatro@sp.br',
-                    senha: '4321',
+                    email: 'email@sp.br',
+                    senha: 'aaaaa1234',
                   },
                   null,
                   2
                 ),
               },
               url: {
-                raw: '{{base_url}}/api/usuarios/3',
+                raw: '{{base_url}}/api/usuarios/2',
                 host: ['{{base_url}}'],
-                path: ['api', 'usuarios', '3'],
+                path: ['api', 'usuarios', '2'],
               },
             },
           },
           {
-            name: 'DELETE Remover Usuário',
+            name: 'DELETE Remover Usuário (Bearer)',
             request: {
+              auth: {
+                type: 'bearer',
+                bearer: [
+                  { key: 'token', value: '{{bearer_token}}', type: 'string' },
+                ],
+              },
               method: 'DELETE',
               header: [],
               url: {
-                raw: '{{base_url}}/api/usuarios/3',
+                raw: '{{base_url}}/api/usuarios/2',
                 host: ['{{base_url}}'],
-                path: ['api', 'usuarios', '3'],
+                path: ['api', 'usuarios', '2'],
               },
             },
           },

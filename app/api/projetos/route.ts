@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { buildCorsHeaders } from '@/lib/exo-auth';
 import { cadastrarProjeto, listarProjetos } from '@/lib/exo-db';
 
 export const dynamic = 'force-dynamic';
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
 
 function extractPayload(body: unknown): {
   nomeDoProjeto?: string;
@@ -41,23 +36,30 @@ function extractPayload(body: unknown): {
   };
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+export async function OPTIONS(req: NextRequest) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: buildCorsHeaders(req),
+  });
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const projetos = listarProjetos();
-  return NextResponse.json(projetos, { status: 200, headers: CORS_HEADERS });
+  return NextResponse.json(projetos, {
+    status: 200,
+    headers: buildCorsHeaders(req),
+  });
 }
 
 export async function POST(req: NextRequest) {
+  const corsHeaders = buildCorsHeaders(req);
   let body: unknown;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json(
       { erro: 'JSON inválido no corpo da requisição.' },
-      { status: 400, headers: CORS_HEADERS }
+      { status: 400, headers: corsHeaders }
     );
   }
 
@@ -65,7 +67,7 @@ export async function POST(req: NextRequest) {
   if (parsed.error || !parsed.nomeDoProjeto || !parsed.area) {
     return NextResponse.json(
       { erro: parsed.error ?? 'Dados inválidos para cadastro.' },
-      { status: 400, headers: CORS_HEADERS }
+      { status: 400, headers: corsHeaders }
     );
   }
 
@@ -75,5 +77,5 @@ export async function POST(req: NextRequest) {
     status: parsed.status ?? true,
   });
 
-  return NextResponse.json(criado, { status: 201, headers: CORS_HEADERS });
+  return NextResponse.json(criado, { status: 201, headers: corsHeaders });
 }

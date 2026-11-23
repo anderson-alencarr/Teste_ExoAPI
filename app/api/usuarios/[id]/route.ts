@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  authenticateBearerRequest,
+  buildCorsHeaders,
+} from '@/lib/exo-auth';
+import {
   atualizarUsuario,
   buscarUsuarioPorId,
   deletarUsuario,
 } from '@/lib/exo-db';
 
 export const dynamic = 'force-dynamic';
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
 
 function parseId(rawId: string): number | null {
   if (!/^\d+$/.test(rawId)) {
@@ -21,21 +19,25 @@ function parseId(rawId: string): number | null {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+export async function OPTIONS(req: NextRequest) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: buildCorsHeaders(req),
+  });
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const corsHeaders = buildCorsHeaders(req);
   const { id: rawId } = await context.params;
   const id = parseId(rawId);
 
   if (id === null) {
     return NextResponse.json(
       { erro: 'O parâmetro "id" deve ser um número inteiro positivo.' },
-      { status: 400, headers: CORS_HEADERS }
+      { status: 400, headers: corsHeaders }
     );
   }
 
@@ -43,24 +45,35 @@ export async function GET(
   if (!usuario) {
     return NextResponse.json(
       { erro: `Usuário com Id ${id} não encontrado.` },
-      { status: 404, headers: CORS_HEADERS }
+      { status: 404, headers: corsHeaders }
     );
   }
 
-  return NextResponse.json(usuario, { status: 200, headers: CORS_HEADERS });
+  return NextResponse.json(usuario, { status: 200, headers: corsHeaders });
 }
 
 export async function PUT(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const corsHeaders = buildCorsHeaders(req);
+  const auth = authenticateBearerRequest(req);
+  if (!auth) {
+    return NextResponse.json(
+      {
+        erro: '401 Unauthorized — Envie um token Bearer válido obtido via POST /api/usuarios.',
+      },
+      { status: 401, headers: corsHeaders }
+    );
+  }
+
   const { id: rawId } = await context.params;
   const id = parseId(rawId);
 
   if (id === null) {
     return NextResponse.json(
       { erro: 'O parâmetro "id" deve ser um número inteiro positivo.' },
-      { status: 400, headers: CORS_HEADERS }
+      { status: 400, headers: corsHeaders }
     );
   }
 
@@ -70,14 +83,14 @@ export async function PUT(
   } catch {
     return NextResponse.json(
       { erro: 'JSON inválido no corpo da requisição.' },
-      { status: 400, headers: CORS_HEADERS }
+      { status: 400, headers: corsHeaders }
     );
   }
 
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return NextResponse.json(
       { erro: 'O corpo da requisição deve ser um objeto JSON válido.' },
-      { status: 400, headers: CORS_HEADERS }
+      { status: 400, headers: corsHeaders }
     );
   }
 
@@ -92,43 +105,54 @@ export async function PUT(
   ) {
     return NextResponse.json(
       { erro: 'O campo "email" deve ser um endereço de e-mail válido.' },
-      { status: 400, headers: CORS_HEADERS }
+      { status: 400, headers: corsHeaders }
     );
   }
 
-  if (typeof rawSenha !== 'string' || rawSenha.trim().length === 0) {
+  if (rawSenha !== undefined && typeof rawSenha !== 'string') {
     return NextResponse.json(
-      { erro: 'O campo "senha" é obrigatório.' },
-      { status: 400, headers: CORS_HEADERS }
+      { erro: 'O campo "senha" deve ser uma string.' },
+      { status: 400, headers: corsHeaders }
     );
   }
 
   const atualizado = atualizarUsuario(id, {
     email: rawEmail.trim(),
-    senha: rawSenha,
+    senha: typeof rawSenha === 'string' && rawSenha.length > 0 ? rawSenha : undefined,
   });
 
   if (!atualizado) {
     return NextResponse.json(
       { erro: `Usuário com Id ${id} não encontrado.` },
-      { status: 404, headers: CORS_HEADERS }
+      { status: 404, headers: corsHeaders }
     );
   }
 
-  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const corsHeaders = buildCorsHeaders(req);
+  const auth = authenticateBearerRequest(req);
+  if (!auth) {
+    return NextResponse.json(
+      {
+        erro: '401 Unauthorized — Envie um token Bearer válido obtido via POST /api/usuarios.',
+      },
+      { status: 401, headers: corsHeaders }
+    );
+  }
+
   const { id: rawId } = await context.params;
   const id = parseId(rawId);
 
   if (id === null) {
     return NextResponse.json(
       { erro: 'O parâmetro "id" deve ser um número inteiro positivo.' },
-      { status: 400, headers: CORS_HEADERS }
+      { status: 400, headers: corsHeaders }
     );
   }
 
@@ -136,9 +160,9 @@ export async function DELETE(
   if (!removido) {
     return NextResponse.json(
       { erro: `Usuário com Id ${id} não encontrado.` },
-      { status: 404, headers: CORS_HEADERS }
+      { status: 404, headers: corsHeaders }
     );
   }
 
-  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
 }

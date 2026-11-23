@@ -10,6 +10,8 @@ import {
   Trash2,
   AlertCircle,
   Terminal,
+  KeyRound,
+  Lock,
 } from 'lucide-react';
 import type { Projeto, Usuario } from '@/lib/exo-seed';
 
@@ -21,12 +23,14 @@ export interface EndpointPreset {
   resource: ApiResource;
   method: HttpMethod;
   pathPattern: string;
+  endpointPath?: string;
   controllerMethod: string;
   controllerName: string;
   label: string;
   description: string;
   requiresId: boolean;
   requiresBody: boolean;
+  requiresAuth?: boolean;
 }
 
 export const PROJETOS_PRESETS: EndpointPreset[] = [
@@ -94,6 +98,20 @@ export const PROJETOS_PRESETS: EndpointPreset[] = [
 
 export const USUARIOS_PRESETS: EndpointPreset[] = [
   {
+    id: 'usuarios-login',
+    resource: 'usuarios',
+    method: 'POST',
+    pathPattern: '/api/usuarios',
+    endpointPath: '/api/usuarios',
+    controllerName: 'UsuariosController',
+    controllerMethod: 'Post(Usuario usuario)',
+    label: 'Login (Gerar Token JWT)',
+    description:
+      'Autentica com Email e Senha e retorna { token } JWT (ou 404 E-mail ou senha inválidos!).',
+    requiresId: false,
+    requiresBody: true,
+  },
+  {
     id: 'usuarios-listar',
     resource: 'usuarios',
     method: 'GET',
@@ -121,11 +139,13 @@ export const USUARIOS_PRESETS: EndpointPreset[] = [
     id: 'usuarios-cadastrar',
     resource: 'usuarios',
     method: 'POST',
-    pathPattern: '/api/usuarios',
+    pathPattern: '/api/usuarios/cadastrar',
+    endpointPath: '/api/usuarios/cadastrar',
     controllerName: 'UsuariosController',
     controllerMethod: 'Cadastrar(Usuario usuario)',
     label: 'Cadastrar usuário',
-    description: 'Insere um novo usuário (email e senha) e retorna 201 Created.',
+    description:
+      'Insere um novo usuário (email e senha) e retorna 201 Created.',
     requiresId: false,
     requiresBody: true,
   },
@@ -136,10 +156,12 @@ export const USUARIOS_PRESETS: EndpointPreset[] = [
     pathPattern: '/api/usuarios/{id}',
     controllerName: 'UsuariosController',
     controllerMethod: 'Atualizar(int id, Usuario usuario)',
-    label: 'Atualizar usuário',
-    description: 'Atualiza Email e Senha pelo Id e retorna 204 No Content.',
+    label: 'Atualizar usuário [Authorize]',
+    description:
+      'Atualiza Email e Senha pelo Id. Exige Bearer Token JWT válido (retorna 204 ou 401).',
     requiresId: true,
     requiresBody: true,
+    requiresAuth: true,
   },
   {
     id: 'usuarios-deletar',
@@ -148,10 +170,12 @@ export const USUARIOS_PRESETS: EndpointPreset[] = [
     pathPattern: '/api/usuarios/{id}',
     controllerName: 'UsuariosController',
     controllerMethod: 'Deletar(int id)',
-    label: 'Deletar usuário',
-    description: 'Remove um usuário existente e retorna 204 No Content.',
+    label: 'Deletar usuário [Authorize]',
+    description:
+      'Remove um usuário existente pelo Id. Exige Bearer Token JWT válido (retorna 204 ou 401).',
     requiresId: true,
     requiresBody: false,
+    requiresAuth: true,
   },
 ];
 
@@ -162,9 +186,18 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
 
 export const DEFAULT_POST_BODY = JSON.stringify(
   {
-    nomeDoProjeto: 'Projeto F — Plataforma Mobile',
+    nomeDoProjeto: 'Projeto D — Plataforma Mobile',
     area: 'Desenvolvimento Mobile',
     status: true,
+  },
+  null,
+  2
+);
+
+export const DEFAULT_USER_LOGIN_BODY = JSON.stringify(
+  {
+    email: 'email@sp.br',
+    senha: '1234',
   },
   null,
   2
@@ -200,6 +233,9 @@ interface ApiTesterPanelProps {
   onChangeTargetId: (id: string) => void;
   requestBody: string;
   onChangeRequestBody: (body: string) => void;
+  authToken: string | null;
+  authEmail: string | null;
+  onAuthChange: (token: string | null, email: string | null) => void;
   onDatabaseMutated: () => Promise<void>;
 }
 
@@ -284,13 +320,20 @@ async function dispatchApiRequest(params: {
   method: HttpMethod;
   requiresBody: boolean;
   body: string;
+  bearerToken?: string | null;
 }) {
   const startedAt = Date.now();
+  const headers: Record<string, string> = {};
+  if (params.requiresBody) {
+    headers['Content-Type'] = 'application/json';
+  }
+  if (params.bearerToken && params.bearerToken.trim().length > 0) {
+    headers['Authorization'] = `Bearer ${params.bearerToken.trim()}`;
+  }
+
   const response = await fetch(params.url, {
     method: params.method,
-    headers: params.requiresBody
-      ? { 'Content-Type': 'application/json' }
-      : undefined,
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
     body: params.requiresBody ? params.body : undefined,
     cache: 'no-store',
   });
@@ -326,6 +369,7 @@ async function dispatchApiRequest(params: {
     durationMs,
     contentType,
     bodyText: formattedBody,
+    rawText,
     timestamp,
   };
 }
@@ -341,6 +385,9 @@ export default function ApiTesterPanel({
   onChangeTargetId,
   requestBody,
   onChangeRequestBody,
+  authToken,
+  authEmail,
+  onAuthChange,
   onDatabaseMutated,
 }: ApiTesterPanelProps) {
   const presetsForResource =
@@ -351,10 +398,12 @@ export default function ApiTesterPanel({
     presetsForResource[0];
 
   const [bodyInputMode, setBodyInputMode] = useState<'form' | 'json'>('form');
+  const [sendAuthHeader, setSendAuthHeader] = useState<boolean>(true);
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState<boolean>(false);
   const [copiedResponse, setCopiedResponse] = useState<boolean>(false);
   const [copiedCurl, setCopiedCurl] = useState<boolean>(false);
+  const [copiedToken, setCopiedToken] = useState<boolean>(false);
 
   const [responseState, setResponseState] = useState<{
     status: number;
@@ -379,7 +428,9 @@ export default function ApiTesterPanel({
   const baseRoute =
     activeResource === 'usuarios' ? '/api/usuarios' : '/api/projetos';
 
-  const resolvedUrl = activePreset.requiresId
+  const resolvedUrl = activePreset.endpointPath
+    ? activePreset.endpointPath
+    : activePreset.requiresId
     ? `${baseRoute}/${targetId.trim() || '1'}`
     : baseRoute;
 
@@ -434,7 +485,7 @@ export default function ApiTesterPanel({
           JSON.stringify(
             {
               email: match.email,
-              senha: match.senha,
+              senha: '',
             },
             null,
             2
@@ -446,7 +497,9 @@ export default function ApiTesterPanel({
 
   async function executeRequest() {
     const preset = activePreset;
-    const url = preset.requiresId
+    const url = preset.endpointPath
+      ? preset.endpointPath
+      : preset.requiresId
       ? `${baseRoute}/${targetId.trim() || '1'}`
       : baseRoute;
 
@@ -466,11 +519,17 @@ export default function ApiTesterPanel({
     setIsSending(true);
 
     try {
+      const bearerToken =
+        activeResource === 'usuarios' && sendAuthHeader && authToken
+          ? authToken
+          : null;
+
       const result = await dispatchApiRequest({
         url,
         method: preset.method,
         requiresBody: preset.requiresBody,
         body: requestBody,
+        bearerToken,
       });
 
       setResponseState({
@@ -496,7 +555,19 @@ export default function ApiTesterPanel({
         ...prev.slice(0, 7),
       ]);
 
-      if (preset.method !== 'GET') {
+      if (preset.id === 'usuarios-login' && result.status === 200) {
+        try {
+          const parsed = JSON.parse(result.rawText) as { token?: string };
+          if (typeof parsed.token === 'string' && parsed.token.length > 0) {
+            const creds = parseUsuarioFields(requestBody);
+            onAuthChange(parsed.token, creds.email || null);
+          }
+        } catch {
+          // Ignore malformed login body
+        }
+      }
+
+      if (preset.method !== 'GET' && preset.id !== 'usuarios-login') {
         await onDatabaseMutated();
       }
     } catch {
@@ -517,6 +588,17 @@ export default function ApiTesterPanel({
     }
   }
 
+  async function handleCopyToken() {
+    if (!authToken) return;
+    try {
+      await navigator.clipboard.writeText(authToken);
+      setCopiedToken(true);
+      setTimeout(() => setCopiedToken(false), 1800);
+    } catch {
+      // Clipboard blocked in some contexts
+    }
+  }
+
   async function handleCopyCurl() {
     const origin =
       typeof window !== 'undefined'
@@ -524,6 +606,14 @@ export default function ApiTesterPanel({
         : 'http://localhost:3000';
     const fullUrl = `${origin}${resolvedUrl}`;
     const curlParts = [`curl -X ${activePreset.method} "${fullUrl}"`];
+    if (
+      activeResource === 'usuarios' &&
+      sendAuthHeader &&
+      authToken &&
+      activePreset.requiresAuth
+    ) {
+      curlParts.push(`-H "Authorization: Bearer ${authToken}"`);
+    }
     if (activePreset.requiresBody) {
       curlParts.push(`-H "Content-Type: application/json"`);
       curlParts.push(`-d '${requestBody.replace(/\n/g, ' ')}'`);
@@ -545,6 +635,12 @@ export default function ApiTesterPanel({
     } catch {
       setJsonError('Não foi possível formatar: JSON inválido.');
     }
+  }
+
+  function getDefaultBodyForPreset() {
+    if (activeResource === 'projetos') return DEFAULT_POST_BODY;
+    if (activePreset.id === 'usuarios-login') return DEFAULT_USER_LOGIN_BODY;
+    return DEFAULT_USER_POST_BODY;
   }
 
   return (
@@ -616,7 +712,7 @@ export default function ApiTesterPanel({
                 : 'text-[#475569] hover:text-[#0F172A]'
             }`}
           >
-            Usuários (/api/usuarios)
+            Usuários &amp; JWT (/api/usuarios)
           </button>
         </div>
       </div>
@@ -648,6 +744,101 @@ export default function ApiTesterPanel({
           );
         })}
       </div>
+
+      {/* JWT Bearer Token Bar for Usuarios */}
+      {activeResource === 'usuarios' && (
+        <div className="rounded-lg border border-[#E2E8F0] bg-white p-4 space-y-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 text-xs">
+              <KeyRound className="h-4 w-4 text-[#2563EB] shrink-0" />
+              <span className="font-semibold text-[#0F172A]">
+                Autenticação Bearer JWT
+              </span>
+              <span aria-hidden="true" className="text-[#CBD5E1]">
+                ·
+              </span>
+              {authToken ? (
+                <span className="font-medium text-[#16A34A]">
+                  Token ativo em memória{authEmail ? ` (${authEmail})` : ''}
+                </span>
+              ) : (
+                <span className="text-[#64748B]">
+                  Nenhum token gerado (envie POST /api/usuarios para autenticar)
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-[#334155]">
+                <input
+                  type="checkbox"
+                  checked={sendAuthHeader}
+                  onChange={(e) => setSendAuthHeader(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB]"
+                />
+                <span>Enviar header Authorization: Bearer</span>
+              </label>
+
+              {authToken && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleCopyToken}
+                    className="inline-flex items-center gap-1 rounded border border-[#CBD5E1] bg-white px-2.5 py-1 text-xs font-medium text-[#334155] hover:bg-[#F8FAFC]"
+                  >
+                    {copiedToken ? (
+                      <>
+                        <Check className="h-3 w-3 text-[#16A34A]" />
+                        <span>Token copiado</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3 w-3 text-[#64748B]" />
+                        <span>Copiar JWT</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAuthChange(null, null)}
+                    className="text-xs font-medium text-[#DC2626] hover:underline"
+                  >
+                    Limpar token
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label
+              htmlFor="tester-jwt-token"
+              className="text-xs font-mono text-[#64748B] shrink-0"
+            >
+              Bearer:
+            </label>
+            <input
+              id="tester-jwt-token"
+              type="text"
+              value={authToken ?? ''}
+              onChange={(e) =>
+                onAuthChange(e.target.value ? e.target.value : null, authEmail)
+              }
+              placeholder="Cole um token JWT ou execute POST /api/usuarios (Login) para preencher automaticamente..."
+              className="w-full rounded-md border border-[#CBD5E1] bg-[#F8FAFC] px-3 py-1.5 font-mono text-xs text-[#0F172A] focus:border-[#2563EB] focus:bg-white focus:outline-none"
+            />
+          </div>
+
+          {activePreset.requiresAuth && (!authToken || !sendAuthHeader) && (
+            <div className="flex items-center gap-2 text-xs text-[#B45309]">
+              <Lock className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                Esta rota exige [Authorize]. Sem token Bearer ativo, a API retornará 401 Unauthorized.
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Request Bar */}
       <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
@@ -779,11 +970,7 @@ export default function ApiTesterPanel({
                 <button
                   type="button"
                   onClick={() => {
-                    onChangeRequestBody(
-                      activeResource === 'usuarios'
-                        ? DEFAULT_USER_POST_BODY
-                        : DEFAULT_POST_BODY
-                    );
+                    onChangeRequestBody(getDefaultBodyForPreset());
                     setJsonError(null);
                   }}
                   className="inline-flex items-center gap-1 text-xs font-medium text-[#475569] hover:text-[#0F172A] whitespace-nowrap"
@@ -870,7 +1057,7 @@ export default function ApiTesterPanel({
                       onChange={(e) =>
                         updateUsuarioField({ email: e.target.value })
                       }
-                      placeholder="Ex.: email_tres@sp.br"
+                      placeholder="Ex.: email@sp.br"
                       className="w-full rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-xs text-[#0F172A] focus:border-[#2563EB] focus:outline-none"
                     />
                   </div>
@@ -879,7 +1066,9 @@ export default function ApiTesterPanel({
                       htmlFor="tester-user-senha-input"
                       className="mb-1.5 block text-xs font-medium text-[#334155]"
                     >
-                      Senha
+                      {activePreset.id === 'usuarios-atualizar'
+                        ? 'Senha (opcional para alterar)'
+                        : 'Senha'}
                     </label>
                     <input
                       id="tester-user-senha-input"

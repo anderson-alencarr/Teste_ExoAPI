@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   listarProjetos,
-  listarUsuarios,
   INITIAL_PROJETOS_SEED,
   INITIAL_USUARIOS_SEED,
 } from '@/lib/exo-db';
@@ -13,10 +12,11 @@ export async function GET(req: NextRequest) {
   const scope = req.nextUrl.searchParams.get('scope');
   const projetos =
     scope === 'atual' ? listarProjetos() : INITIAL_PROJETOS_SEED;
-  const usuarios =
-    scope === 'atual' ? listarUsuarios() : INITIAL_USUARIOS_SEED;
 
-  const sql = generateCriaDbSql({ projetos, usuarios });
+  const sql = generateCriaDbSql({
+    projetos,
+    usuarios: INITIAL_USUARIOS_SEED,
+  });
 
   return new NextResponse(sql, {
     status: 200,

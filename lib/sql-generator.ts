@@ -2,14 +2,14 @@ import {
   INITIAL_PROJETOS_SEED,
   INITIAL_USUARIOS_SEED,
   type Projeto,
-  type Usuario,
+  type UsuarioSeedRecord,
 } from '@/lib/exo-seed';
 
 export interface GenerateCriaDbOptions {
   databaseName?: string;
   tableName?: string;
   projetos?: Projeto[];
-  usuarios?: Usuario[];
+  usuarios?: UsuarioSeedRecord[];
 }
 
 function escapeSqlString(value: string): string {
@@ -40,25 +40,28 @@ export function generateCriaDbSql(options: GenerateCriaDbOptions = {}): string {
     '    Id INT PRIMARY KEY IDENTITY(1,1),',
     '    NomeDoProjeto VARCHAR(150) NOT NULL,',
     '    Area VARCHAR(150) NOT NULL,',
-    '    Status BIT NOT NULL',
+    '    Status BIT',
     ');',
     'GO',
     '',
   ];
 
   if (registrosProjetos.length > 0) {
-    lines.push(
-      `INSERT INTO ${tableName} (NomeDoProjeto, Area, Status) VALUES`
-    );
-    registrosProjetos.forEach((projeto, index) => {
+    registrosProjetos.forEach((projeto) => {
       const nome = escapeSqlString(projeto.nomeDoProjeto);
       const area = escapeSqlString(projeto.area);
       const statusBit = projeto.status ? 1 : 0;
-      const suffix = index === registrosProjetos.length - 1 ? ';' : ',';
-      lines.push(`('${nome}', '${area}', ${statusBit})${suffix}`);
+      lines.push(
+        `INSERT INTO ${tableName} (NomeDoProjeto, Area, Status)`,
+        `VALUES ('${nome}', '${area}', ${statusBit});`,
+        'GO',
+        ''
+      );
     });
-    lines.push('GO', '');
   }
+
+  lines.push(`SELECT Id, NomeDoProjeto, Area, Status FROM ${tableName};`);
+  lines.push('GO', '');
 
   lines.push(
     'CREATE TABLE Usuarios (',
@@ -71,18 +74,18 @@ export function generateCriaDbSql(options: GenerateCriaDbOptions = {}): string {
   );
 
   if (registrosUsuarios.length > 0) {
-    lines.push('INSERT INTO Usuarios (Email, Senha) VALUES');
-    registrosUsuarios.forEach((usuario, index) => {
+    registrosUsuarios.forEach((usuario) => {
       const email = escapeSqlString(usuario.email);
       const senha = escapeSqlString(usuario.senha);
-      const suffix = index === registrosUsuarios.length - 1 ? ';' : ',';
-      lines.push(`('${email}', '${senha}')${suffix}`);
+      lines.push(
+        `INSERT INTO Usuarios VALUES ('${email}', '${senha}');`,
+        'GO',
+        ''
+      );
     });
-    lines.push('GO', '');
   }
 
-  lines.push(`SELECT Id, NomeDoProjeto, Area, Status FROM ${tableName};`);
-  lines.push('SELECT Id, Email, Senha FROM Usuarios;');
+  lines.push('SELECT Id, Email FROM Usuarios;');
   lines.push('GO', '');
 
   return lines.join('\n');

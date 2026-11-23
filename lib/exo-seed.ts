@@ -14,7 +14,6 @@ export interface ProjetoInput {
 export interface Usuario {
   id: number;
   email: string;
-  senha: string;
 }
 
 export interface UsuarioInput {
@@ -22,43 +21,37 @@ export interface UsuarioInput {
   senha: string;
 }
 
+export interface UsuarioSeedRecord {
+  id: number;
+  email: string;
+  senha: string;
+}
+
 export const INITIAL_PROJETOS_SEED: Projeto[] = [
   {
     id: 1,
-    nomeDoProjeto: 'Projeto A — Obra Residencial',
+    nomeDoProjeto: 'Projeto A - Obras BR',
     area: 'Construção Civil',
     status: true,
   },
   {
     id: 2,
-    nomeDoProjeto: 'Projeto B — Portal ExoApi',
-    area: 'Tecnologia da Informação',
-    status: true,
+    nomeDoProjeto: 'Projeto B - SENAI Fest',
+    area: 'Eventos',
+    status: false,
   },
   {
     id: 3,
-    nomeDoProjeto: 'Projeto C — Automação Industrial',
-    area: 'Mecatrônica',
-    status: false,
-  },
-  {
-    id: 4,
-    nomeDoProjeto: 'Projeto D — Painel Logístico',
-    area: 'Supply Chain',
+    nomeDoProjeto: 'Projeto C - Hackathon Fest',
+    area: 'Eventos',
     status: true,
-  },
-  {
-    id: 5,
-    nomeDoProjeto: 'Projeto E — Eficiência Energética',
-    area: 'Engenharia Elétrica',
-    status: false,
   },
 ];
 
-export const INITIAL_USUARIOS_SEED: Usuario[] = [
+export const INITIAL_USUARIOS_SEED: UsuarioSeedRecord[] = [
   {
     id: 1,
-    email: 'email_um@sp.br',
+    email: 'email@sp.br',
     senha: '1234',
   },
   {

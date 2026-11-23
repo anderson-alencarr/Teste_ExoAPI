@@ -25,7 +25,7 @@ const GUIDE_STEPS: GuideStep[] = [
     number: '01.',
     title: 'Criar o banco de dados no SSMS (cria-db.sql)',
     summary:
-      'Abra o SQL Server Management Studio (SSMS), carregue o script cria-db.sql e clique em Executar para criar o banco ExoApi e a tabela Projetos com os dados iniciais.',
+      'Abra o SQL Server Management Studio (SSMS), carregue o script cria-db.sql e clique em Executar para criar o banco ExoApi e as tabelas Projetos e Usuarios com os registros iniciais.',
     fileLinks: [{ label: 'Ver cria-db.sql', fileId: 'cria-db' }],
   },
   {
@@ -86,6 +86,24 @@ const GUIDE_STEPS: GuideStep[] = [
     ],
     endpointId: 'usuarios-listar',
   },
+  {
+    id: 'login-jwt-cors',
+    number: '07.',
+    title: 'Implementar Login JWT, [Authorize] e CORS (Atividade 6)',
+    summary:
+      'Adicione o pacote Microsoft.AspNetCore.Authentication.JwtBearer (6.0.0) no Exo.WebApi.csproj, configure AddCors, AddAuthentication("JwtBearer"), UseCors, UseAuthentication e UseAuthorization em Program.cs, implemente Login() no UsuarioRepository e atualize UsuariosController com Post() para retornar o token JWT e [Authorize] em Atualizar/Deletar.',
+    commands: [
+      'dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer --version 6.0.0',
+      'dotnet run',
+    ],
+    fileLinks: [
+      { label: 'Exo.WebApi.csproj', fileId: 'csproj' },
+      { label: 'Program.cs (JWT + CORS)', fileId: 'program-cs' },
+      { label: 'UsuarioRepository.cs', fileId: 'usuario-repository' },
+      { label: 'UsuariosController.cs (JWT)', fileId: 'usuarios-controller' },
+    ],
+    endpointId: 'usuarios-login',
+  },
 ];
 
 export default function ActivityGuidePanel({
@@ -119,10 +137,10 @@ export default function ActivityGuidePanel({
             Roteiro Prático · Desenvolvimento de APIs
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[#0F172A] text-balance">
-            Guia da Atividade 3 (SSMS e .NET)
+            Guia das Atividades 3, 5 e 6 (SSMS, .NET, JWT e CORS)
           </h1>
           <p className="mt-1 text-sm text-[#475569]">
-            Acompanhe cada etapa da entrega desde o script cria-db.sql até os testes completos no navegador.
+            Acompanhe cada etapa da entrega desde o script cria-db.sql até os testes de autenticação JWT e CORS no Insomnia e Postman.
           </p>
         </div>
 

@@ -11,14 +11,14 @@ import {
   RotateCcw,
   AlertCircle,
   Download,
-  Eye,
-  EyeOff,
+  Lock,
 } from 'lucide-react';
 import type { Usuario } from '@/lib/exo-seed';
 import { downloadCriaDbSql } from '@/lib/sql-generator';
 
 interface UsuariosTablePanelProps {
   usuarios: Usuario[];
+  authToken: string | null;
   isLoading: boolean;
   onRefresh: () => Promise<void>;
   onResetDatabase: () => Promise<void>;
@@ -27,18 +27,19 @@ interface UsuariosTablePanelProps {
 
 export default function UsuariosTablePanel({
   usuarios,
+  authToken,
   isLoading,
   onRefresh,
   onResetDatabase,
   onTestUsuarioInApi,
 }: UsuariosTablePanelProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [revealedIds, setRevealedIds] = useState<number[]>([]);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [tableError, setTableError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -52,26 +53,22 @@ export default function UsuariosTablePanel({
     );
   }, [usuarios, searchQuery]);
 
-  function toggleReveal(id: number) {
-    setRevealedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  }
-
   function openCreateModal() {
     setModalMode('create');
     setEditingId(null);
     setEmail('');
     setSenha('');
     setFormError(null);
+    setTableError(null);
   }
 
   function openEditModal(usuario: Usuario) {
     setModalMode('edit');
     setEditingId(usuario.id);
     setEmail(usuario.email);
-    setSenha(usuario.senha);
+    setSenha('');
     setFormError(null);
+    setTableError(null);
   }
 
   function closeModal() {
@@ -88,33 +85,49 @@ export default function UsuariosTablePanel({
       setFormError('Informe um endereço de e-mail válido.');
       return;
     }
-    if (!senha.trim()) {
+    if (modalMode === 'create' && !senha.trim()) {
       setFormError('Informe a senha do usuário.');
       return;
     }
 
     setIsSaving(true);
     try {
-      const url =
-        modalMode === 'edit' && editingId !== null
-          ? `/api/usuarios/${editingId}`
-          : '/api/usuarios';
-      const method = modalMode === 'edit' ? 'PUT' : 'POST';
+      const isEdit = modalMode === 'edit' && editingId !== null;
+      const url = isEdit
+        ? `/api/usuarios/${editingId}`
+        : '/api/usuarios/cadastrar';
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (isEdit && authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      const payload: { email: string; senha?: string } = {
+        email: email.trim(),
+      };
+      if (!isEdit || senha.trim().length > 0) {
+        payload.senha = senha;
+      }
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim(),
-          senha,
-        }),
+        headers,
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const errData = (await response.json().catch(() => null)) as {
           erro?: string;
         } | null;
-        setFormError(errData?.erro ?? 'Erro ao salvar usuário no banco.');
+        setFormError(
+          errData?.erro ??
+            (response.status === 401
+              ? '401 Unauthorized — Faça login via POST /api/usuarios para gerar um token Bearer.'
+              : 'Erro ao salvar usuário no banco.')
+        );
         return;
       }
 
@@ -129,14 +142,33 @@ export default function UsuariosTablePanel({
 
   async function handleDelete(id: number) {
     setDeletingId(id);
+    setTableError(null);
     try {
+      const headers: Record<string, string> = {};
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
       const response = await fetch(`/api/usuarios/${id}`, {
         method: 'DELETE',
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
       });
       if (response.ok) {
         setConfirmDeleteId(null);
         await onRefresh();
+      } else {
+        const errData = (await response.json().catch(() => null)) as {
+          erro?: string;
+        } | null;
+        setConfirmDeleteId(null);
+        setTableError(
+          errData?.erro ??
+            (response.status === 401
+              ? '401 Unauthorized — Gere um token Bearer via Login (POST /api/usuarios) para excluir usuários.'
+              : 'Erro ao remover usuário.')
+        );
       }
+    } catch {
+      setTableError('Não foi possível conectar ao endpoint da API.');
     } finally {
       setDeletingId(null);
     }
@@ -153,7 +185,7 @@ export default function UsuariosTablePanel({
             Usuários Cadastrados no Banco
           </h1>
           <p className="mt-1 text-sm text-[#475569]">
-            Consulte, cadastre, edite e remova os usuários persistidos no endpoint /api/usuarios.
+            Consulte usuários via GET /api/usuarios, cadastre em /api/usuarios/cadastrar e gerencie alterações protegidas por Bearer JWT.
           </p>
         </div>
 
@@ -176,6 +208,31 @@ export default function UsuariosTablePanel({
           </button>
         </div>
       </div>
+
+      {!authToken && (
+        <div className="flex items-center gap-2 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-xs text-[#92400E]">
+          <Lock className="h-4 w-4 shrink-0" />
+          <span>
+            Rotas PUT e DELETE exigem [Authorize]. Gere um token JWT no Testador API ou em Formulários antes de editar ou excluir registros.
+          </span>
+        </div>
+      )}
+
+      {tableError && (
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-xs font-medium text-[#DC2626]">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{tableError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTableError(null)}
+            className="text-[#991B1B] hover:underline"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
 
       {/* Search Toolbar */}
       <div className="flex flex-col gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -203,22 +260,18 @@ export default function UsuariosTablePanel({
               <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC] text-xs font-semibold text-[#475569]">
                 <th className="w-20 px-4 py-3 font-mono">Id</th>
                 <th className="px-4 py-3">Email</th>
-                <th className="w-44 px-4 py-3">Senha</th>
                 <th className="w-56 px-4 py-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F1F5F9] text-sm">
               {isLoading ? (
-                Array.from({ length: 3 }).map((_, idx) => (
+                Array.from({ length: 2 }).map((_, idx) => (
                   <tr key={idx} className="h-11">
                     <td className="px-4 py-2.5">
                       <div className="h-3.5 w-8 animate-pulse rounded bg-[#E2E8F0]" />
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="h-3.5 w-48 animate-pulse rounded bg-[#E2E8F0]" />
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="h-3.5 w-20 animate-pulse rounded bg-[#E2E8F0]" />
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <div className="ml-auto h-3.5 w-24 animate-pulse rounded bg-[#E2E8F0]" />
@@ -227,7 +280,7 @@ export default function UsuariosTablePanel({
                 ))
               ) : filteredUsuarios.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center">
+                  <td colSpan={3} className="px-6 py-12 text-center">
                     <p className="text-sm font-medium text-[#0F172A]">
                       Nenhum usuário encontrado na tabela Usuarios.
                     </p>
@@ -259,93 +312,73 @@ export default function UsuariosTablePanel({
                   </td>
                 </tr>
               ) : (
-                filteredUsuarios.map((usuario) => {
-                  const isRevealed = revealedIds.includes(usuario.id);
-                  return (
-                    <tr
-                      key={usuario.id}
-                      className="h-11 transition-colors hover:bg-[#F8FAFC]"
-                    >
-                      <td className="px-4 py-2.5 font-mono text-xs font-medium tabular-nums text-[#475569]">
-                        #{usuario.id}
-                      </td>
-                      <td className="px-4 py-2.5 font-medium text-[#0F172A]">
-                        {usuario.email}
-                      </td>
-                      <td className="px-4 py-2.5 font-mono text-xs text-[#475569]">
-                        <div className="inline-flex items-center gap-2">
-                          <span>{isRevealed ? usuario.senha : '••••••'}</span>
+                filteredUsuarios.map((usuario) => (
+                  <tr
+                    key={usuario.id}
+                    className="h-11 transition-colors hover:bg-[#F8FAFC]"
+                  >
+                    <td className="px-4 py-2.5 font-mono text-xs font-medium tabular-nums text-[#475569]">
+                      #{usuario.id}
+                    </td>
+                    <td className="px-4 py-2.5 font-medium text-[#0F172A]">
+                      {usuario.email}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      {confirmDeleteId === usuario.id ? (
+                        <div className="inline-flex items-center justify-end gap-2">
+                          <span className="text-xs text-[#DC2626]">
+                            Confirmar?
+                          </span>
                           <button
                             type="button"
-                            aria-label="Mostrar ou ocultar senha"
-                            onClick={() => toggleReveal(usuario.id)}
-                            className="text-[#94A3B8] hover:text-[#0F172A]"
+                            disabled={deletingId === usuario.id}
+                            onClick={() => handleDelete(usuario.id)}
+                            className="rounded bg-[#DC2626] px-2.5 py-1 text-xs font-semibold text-white hover:bg-[#B91C1C]"
                           >
-                            {isRevealed ? (
-                              <EyeOff className="h-3.5 w-3.5" />
-                            ) : (
-                              <Eye className="h-3.5 w-3.5" />
-                            )}
+                            {deletingId === usuario.id ? '...' : 'Excluir'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="rounded border border-[#CBD5E1] bg-white px-2.5 py-1 text-xs font-medium text-[#475569] hover:bg-[#F8FAFC]"
+                          >
+                            Cancelar
                           </button>
                         </div>
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        {confirmDeleteId === usuario.id ? (
-                          <div className="inline-flex items-center justify-end gap-2">
-                            <span className="text-xs text-[#DC2626]">
-                              Confirmar?
-                            </span>
-                            <button
-                              type="button"
-                              disabled={deletingId === usuario.id}
-                              onClick={() => handleDelete(usuario.id)}
-                              className="rounded bg-[#DC2626] px-2.5 py-1 text-xs font-semibold text-white hover:bg-[#B91C1C]"
-                            >
-                              {deletingId === usuario.id ? '...' : 'Excluir'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDeleteId(null)}
-                              className="rounded border border-[#CBD5E1] bg-white px-2.5 py-1 text-xs font-medium text-[#475569] hover:bg-[#F8FAFC]"
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="inline-flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
-                              title="Testar GET por Id no Testador API"
-                              onClick={() => onTestUsuarioInApi(usuario.id)}
-                              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[#2563EB] hover:bg-[#EFF6FF]"
-                            >
-                              <FlaskConical className="h-3.5 w-3.5" />
-                              <span>Testar</span>
-                            </button>
-                            <button
-                              type="button"
-                              title="Editar usuário"
-                              onClick={() => openEditModal(usuario)}
-                              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[#334155] hover:bg-[#F1F5F9]"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              <span>Editar</span>
-                            </button>
-                            <button
-                              type="button"
-                              title="Excluir usuário"
-                              onClick={() => setConfirmDeleteId(usuario.id)}
-                              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[#DC2626] hover:bg-[#FEF2F2]"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              <span>Excluir</span>
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
+                      ) : (
+                        <div className="inline-flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            title="Testar GET por Id no Testador API"
+                            onClick={() => onTestUsuarioInApi(usuario.id)}
+                            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[#2563EB] hover:bg-[#EFF6FF]"
+                          >
+                            <FlaskConical className="h-3.5 w-3.5" />
+                            <span>Testar</span>
+                          </button>
+                          <button
+                            type="button"
+                            title="Editar usuário"
+                            onClick={() => openEditModal(usuario)}
+                            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[#334155] hover:bg-[#F1F5F9]"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            <span>Editar</span>
+                          </button>
+                          <button
+                            type="button"
+                            title="Excluir usuário"
+                            onClick={() => setConfirmDeleteId(usuario.id)}
+                            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[#DC2626] hover:bg-[#FEF2F2]"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span>Excluir</span>
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -403,14 +436,18 @@ export default function UsuariosTablePanel({
                   htmlFor="modal-user-senha"
                   className="mb-1.5 block text-xs font-medium text-[#334155]"
                 >
-                  Senha
+                  {modalMode === 'edit' ? 'Nova Senha (opcional)' : 'Senha'}
                 </label>
                 <input
                   id="modal-user-senha"
-                  type="text"
+                  type="password"
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
-                  placeholder="Ex.: 1234"
+                  placeholder={
+                    modalMode === 'edit'
+                      ? 'Deixe em branco para manter a senha atual'
+                      : 'Ex.: 1234'
+                  }
                   className="w-full rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none"
                 />
               </div>

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { hashPassword, verifyPassword } from '@/lib/exo-auth';
 import {
   INITIAL_PROJETOS_SEED,
   INITIAL_USUARIOS_SEED,
@@ -18,31 +19,48 @@ export {
   type UsuarioInput,
 };
 
+interface StoredUsuario {
+  id: number;
+  email: string;
+  senhaHash: string;
+}
+
 interface StoreState {
   nextProjetoId: number;
   projetos: Projeto[];
   nextUsuarioId: number;
-  usuarios: Usuario[];
+  usuarios: StoredUsuario[];
 }
 
-const DB_FILE_PATH = path.join('/tmp', 'exoapi-db-v2.json');
+const DB_FILE_PATH = path.join('/tmp', 'exoapi-db-v3.json');
 
 const globalForExo = globalThis as unknown as {
-  __exoApiStoreV2?: StoreState;
+  __exoApiStoreV3?: StoreState;
 };
+
+function toPublicUsuario(stored: StoredUsuario): Usuario {
+  return {
+    id: stored.id,
+    email: stored.email,
+  };
+}
 
 function cloneSeed(): StoreState {
   return {
-    nextProjetoId: 6,
+    nextProjetoId: INITIAL_PROJETOS_SEED.length + 1,
     projetos: INITIAL_PROJETOS_SEED.map((item) => ({ ...item })),
-    nextUsuarioId: 3,
-    usuarios: INITIAL_USUARIOS_SEED.map((item) => ({ ...item })),
+    nextUsuarioId: INITIAL_USUARIOS_SEED.length + 1,
+    usuarios: INITIAL_USUARIOS_SEED.map((item) => ({
+      id: item.id,
+      email: item.email,
+      senhaHash: hashPassword(item.senha),
+    })),
   };
 }
 
 function readStore(): StoreState {
-  if (globalForExo.__exoApiStoreV2) {
-    return globalForExo.__exoApiStoreV2;
+  if (globalForExo.__exoApiStoreV3) {
+    return globalForExo.__exoApiStoreV3;
   }
 
   try {
@@ -53,9 +71,10 @@ function readStore(): StoreState {
         Array.isArray(parsed.projetos) &&
         typeof parsed.nextProjetoId === 'number' &&
         Array.isArray(parsed.usuarios) &&
-        typeof parsed.nextUsuarioId === 'number'
+        typeof parsed.nextUsuarioId === 'number' &&
+        parsed.usuarios.every((u) => typeof u.senhaHash === 'string')
       ) {
-        globalForExo.__exoApiStoreV2 = parsed;
+        globalForExo.__exoApiStoreV3 = parsed;
         return parsed;
       }
     }
@@ -69,7 +88,7 @@ function readStore(): StoreState {
 }
 
 function writeStore(state: StoreState): void {
-  globalForExo.__exoApiStoreV2 = state;
+  globalForExo.__exoApiStoreV3 = state;
   try {
     fs.writeFileSync(DB_FILE_PATH, JSON.stringify(state, null, 2), 'utf-8');
   } catch {
@@ -158,26 +177,41 @@ export function deletarProjeto(id: number): Projeto | null {
 }
 
 // ============================================================================
-// Usuarios CRUD
+// Usuarios CRUD & Login
 // ============================================================================
 
 export function listarUsuarios(): Usuario[] {
   const store = readStore();
-  return store.usuarios.map((item) => ({ ...item }));
+  return store.usuarios.map(toPublicUsuario);
 }
 
 export function buscarUsuarioPorId(id: number): Usuario | null {
   const store = readStore();
   const found = store.usuarios.find((item) => item.id === id);
-  return found ? { ...found } : null;
+  return found ? toPublicUsuario(found) : null;
+}
+
+export function loginUsuario(email: string, senha: string): Usuario | null {
+  const store = readStore();
+  const normalized = email.trim().toLowerCase();
+  const found = store.usuarios.find(
+    (item) => item.email.trim().toLowerCase() === normalized
+  );
+  if (!found) {
+    return null;
+  }
+  if (!verifyPassword(senha, found.senhaHash)) {
+    return null;
+  }
+  return toPublicUsuario(found);
 }
 
 export function cadastrarUsuario(input: UsuarioInput): Usuario {
   const store = readStore();
-  const novoUsuario: Usuario = {
+  const novoUsuario: StoredUsuario = {
     id: store.nextUsuarioId,
     email: input.email.trim(),
-    senha: input.senha,
+    senhaHash: hashPassword(input.senha),
   };
 
   writeStore({
@@ -186,7 +220,7 @@ export function cadastrarUsuario(input: UsuarioInput): Usuario {
     usuarios: [...store.usuarios, novoUsuario],
   });
 
-  return { ...novoUsuario };
+  return toPublicUsuario(novoUsuario);
 }
 
 export function atualizarUsuario(
@@ -200,16 +234,16 @@ export function atualizarUsuario(
   }
 
   const current = store.usuarios[index];
-  const updated: Usuario = {
+  const updated: StoredUsuario = {
     id: current.id,
     email:
       typeof input.email === 'string' && input.email.trim().length > 0
         ? input.email.trim()
         : current.email,
-    senha:
+    senhaHash:
       typeof input.senha === 'string' && input.senha.length > 0
-        ? input.senha
-        : current.senha,
+        ? hashPassword(input.senha)
+        : current.senhaHash,
   };
 
   const nextUsuarios = [...store.usuarios];
@@ -220,7 +254,7 @@ export function atualizarUsuario(
     usuarios: nextUsuarios,
   });
 
-  return { ...updated };
+  return toPublicUsuario(updated);
 }
 
 export function deletarUsuario(id: number): Usuario | null {
@@ -235,7 +269,7 @@ export function deletarUsuario(id: number): Usuario | null {
     usuarios: store.usuarios.filter((item) => item.id !== id),
   });
 
-  return { ...existing };
+  return toPublicUsuario(existing);
 }
 
 export function resetarBanco(): { projetos: Projeto[]; usuarios: Usuario[] } {
@@ -243,6 +277,6 @@ export function resetarBanco(): { projetos: Projeto[]; usuarios: Usuario[] } {
   writeStore(seeded);
   return {
     projetos: seeded.projetos.map((item) => ({ ...item })),
-    usuarios: seeded.usuarios.map((item) => ({ ...item })),
+    usuarios: seeded.usuarios.map(toPublicUsuario),
   };
 }

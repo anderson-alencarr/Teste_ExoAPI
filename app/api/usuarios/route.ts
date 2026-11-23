@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cadastrarUsuario, listarUsuarios } from '@/lib/exo-db';
+import { buildCorsHeaders, signExoJwt } from '@/lib/exo-auth';
+import { listarUsuarios, loginUsuario } from '@/lib/exo-db';
 
 export const dynamic = 'force-dynamic';
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
-
-function extractUsuarioPayload(body: unknown): {
+function extractCredentials(body: unknown): {
   email?: string;
   senha?: string;
   error?: string;
@@ -26,11 +21,7 @@ function extractUsuarioPayload(body: unknown): {
     return { error: 'O campo "email" é obrigatório.' };
   }
 
-  if (!rawEmail.includes('@') || !rawEmail.includes('.')) {
-    return { error: 'Informe um endereço de e-mail válido.' };
-  }
-
-  if (typeof rawSenha !== 'string' || rawSenha.trim().length === 0) {
+  if (typeof rawSenha !== 'string' || rawSenha.length === 0) {
     return { error: 'O campo "senha" é obrigatório.' };
   }
 
@@ -40,38 +31,49 @@ function extractUsuarioPayload(body: unknown): {
   };
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+export async function OPTIONS(req: NextRequest) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: buildCorsHeaders(req),
+  });
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const usuarios = listarUsuarios();
-  return NextResponse.json(usuarios, { status: 200, headers: CORS_HEADERS });
+  return NextResponse.json(usuarios, {
+    status: 200,
+    headers: buildCorsHeaders(req),
+  });
 }
 
 export async function POST(req: NextRequest) {
+  const corsHeaders = buildCorsHeaders(req);
   let body: unknown;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json(
       { erro: 'JSON inválido no corpo da requisição.' },
-      { status: 400, headers: CORS_HEADERS }
+      { status: 400, headers: corsHeaders }
     );
   }
 
-  const parsed = extractUsuarioPayload(body);
+  const parsed = extractCredentials(body);
   if (parsed.error || !parsed.email || !parsed.senha) {
     return NextResponse.json(
-      { erro: parsed.error ?? 'Dados inválidos para cadastro de usuário.' },
-      { status: 400, headers: CORS_HEADERS }
+      { erro: parsed.error ?? 'Informe e-mail e senha para autenticar.' },
+      { status: 400, headers: corsHeaders }
     );
   }
 
-  const criado = cadastrarUsuario({
-    email: parsed.email,
-    senha: parsed.senha,
-  });
+  const usuarioBuscado = loginUsuario(parsed.email, parsed.senha);
+  if (!usuarioBuscado) {
+    return NextResponse.json(
+      { erro: 'E-mail ou senha inválidos!' },
+      { status: 404, headers: corsHeaders }
+    );
+  }
 
-  return NextResponse.json(criado, { status: 201, headers: CORS_HEADERS });
+  const token = signExoJwt(usuarioBuscado);
+  return NextResponse.json({ token }, { status: 200, headers: corsHeaders });
 }

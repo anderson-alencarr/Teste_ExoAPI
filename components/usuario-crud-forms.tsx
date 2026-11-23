@@ -10,6 +10,11 @@ import {
   Download,
   Eye,
   EyeOff,
+  KeyRound,
+  Copy,
+  Check,
+  Lock,
+  LogIn,
 } from 'lucide-react';
 import type { Usuario } from '@/lib/exo-seed';
 import {
@@ -19,6 +24,9 @@ import {
 
 interface UsuarioCrudFormsProps {
   usuarios: Usuario[];
+  authToken: string | null;
+  authEmail: string | null;
+  onAuthChange: (token: string | null, email: string | null) => void;
   onDatabaseMutated: () => Promise<void>;
 }
 
@@ -45,16 +53,27 @@ function downloadJsonFile(filename: string, content: string) {
 
 export default function UsuarioCrudForms({
   usuarios,
+  authToken,
+  authEmail,
+  onAuthChange,
   onDatabaseMutated,
 }: UsuarioCrudFormsProps) {
-  // POST Form State
+  // Login Form State (POST /api/usuarios)
+  const [loginEmail, setLoginEmail] = useState('email@sp.br');
+  const [loginSenha, setLoginSenha] = useState('1234');
+  const [showLoginSenha, setShowLoginSenha] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [copiedToken, setCopiedToken] = useState(false);
+
+  // POST Cadastrar Form State (POST /api/usuarios/cadastrar)
   const [postEmail, setPostEmail] = useState('');
   const [postSenha, setPostSenha] = useState('');
   const [showPostSenha, setShowPostSenha] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [isPosting, setIsPosting] = useState(false);
 
-  // PUT Form State
+  // PUT Form State (PUT /api/usuarios/{id} [Authorize])
   const firstUsuario = usuarios[0] ?? null;
   const [putSelectedId, setPutSelectedId] = useState<string>(
     firstUsuario ? String(firstUsuario.id) : ''
@@ -62,14 +81,12 @@ export default function UsuarioCrudForms({
   const [putEmail, setPutEmail] = useState<string>(
     firstUsuario ? firstUsuario.email : ''
   );
-  const [putSenha, setPutSenha] = useState<string>(
-    firstUsuario ? firstUsuario.senha : ''
-  );
+  const [putSenha, setPutSenha] = useState<string>('');
   const [showPutSenha, setShowPutSenha] = useState(false);
   const [putError, setPutError] = useState<string | null>(null);
   const [isPutting, setIsPutting] = useState(false);
 
-  // DELETE Form State
+  // DELETE Form State (DELETE /api/usuarios/{id} [Authorize])
   const [deleteSelectedId, setDeleteSelectedId] = useState<string>(
     firstUsuario ? String(firstUsuario.id) : ''
   );
@@ -85,7 +102,88 @@ export default function UsuarioCrudForms({
     const found = usuarios.find((u) => String(u.id) === rawId);
     if (found) {
       setPutEmail(found.email);
-      setPutSenha(found.senha);
+      setPutSenha('');
+    }
+  }
+
+  async function handleLoginSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoginError(null);
+
+    if (!loginEmail.trim() || !loginEmail.includes('@')) {
+      setLoginError('Informe um endereço de e-mail válido.');
+      return;
+    }
+    if (!loginSenha) {
+      setLoginError('Informe a senha para autenticar.');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    try {
+      const response = await fetch('/api/usuarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: loginEmail.trim(),
+          senha: loginSenha,
+        }),
+      });
+
+      const rawText = await response.text();
+      let formatted = rawText;
+      if (rawText.trim().length > 0) {
+        try {
+          formatted = JSON.stringify(JSON.parse(rawText), null, 2);
+        } catch {
+          formatted = rawText;
+        }
+      }
+
+      if (!response.ok) {
+        const parsedErr = rawText
+          ? (JSON.parse(rawText) as { erro?: string })
+          : null;
+        setLoginError(parsedErr?.erro ?? 'E-mail ou senha inválidos!');
+        setLastResult({
+          method: 'POST',
+          url: '/api/usuarios',
+          status: response.status,
+          message: parsedErr?.erro ?? 'Falha na autenticação JWT.',
+          payloadText: formatted,
+          ok: false,
+        });
+        return;
+      }
+
+      const data = JSON.parse(rawText) as { token?: string };
+      if (data.token) {
+        onAuthChange(data.token, loginEmail.trim());
+      }
+
+      setLastResult({
+        method: 'POST',
+        url: '/api/usuarios',
+        status: response.status,
+        message: 'Login JWT realizado com sucesso. Token Bearer armazenado em memória.',
+        payloadText: formatted,
+        ok: true,
+      });
+    } catch {
+      setLoginError('Não foi possível conectar ao endpoint de login.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }
+
+  async function handleCopyToken() {
+    if (!authToken) return;
+    try {
+      await navigator.clipboard.writeText(authToken);
+      setCopiedToken(true);
+      setTimeout(() => setCopiedToken(false), 1800);
+    } catch {
+      // Ignore clipboard failures
     }
   }
 
@@ -104,7 +202,7 @@ export default function UsuarioCrudForms({
 
     setIsPosting(true);
     try {
-      const response = await fetch('/api/usuarios', {
+      const response = await fetch('/api/usuarios/cadastrar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -125,7 +223,7 @@ export default function UsuarioCrudForms({
         setPostError(parsedErr?.erro ?? 'Erro ao cadastrar usuário.');
         setLastResult({
           method: 'POST',
-          url: '/api/usuarios',
+          url: '/api/usuarios/cadastrar',
           status: response.status,
           message: parsedErr?.erro ?? 'Falha na requisição POST.',
           payloadText: formatted,
@@ -140,9 +238,10 @@ export default function UsuarioCrudForms({
 
       setLastResult({
         method: 'POST',
-        url: '/api/usuarios',
+        url: '/api/usuarios/cadastrar',
         status: response.status,
-        message: 'Novo usuário cadastrado com sucesso via POST /api/usuarios.',
+        message:
+          'Novo usuário cadastrado com sucesso via POST /api/usuarios/cadastrar.',
         payloadText: formatted,
         ok: true,
       });
@@ -165,22 +264,29 @@ export default function UsuarioCrudForms({
       setPutError('Informe um endereço de e-mail válido.');
       return;
     }
-    if (!putSenha.trim()) {
-      setPutError('O campo Senha é obrigatório.');
-      return;
-    }
 
     const url = `/api/usuarios/${putSelectedId.trim()}`;
     setIsPutting(true);
 
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      const payload: { email: string; senha?: string } = {
+        email: putEmail.trim(),
+      };
+      if (putSenha.trim().length > 0) {
+        payload.senha = putSenha;
+      }
+
       const response = await fetch(url, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: putEmail.trim(),
-          senha: putSenha,
-        }),
+        headers,
+        body: JSON.stringify(payload),
       });
 
       const rawText = await response.text();
@@ -204,13 +310,16 @@ export default function UsuarioCrudForms({
           method: 'PUT',
           url,
           status: response.status,
-          message: parsedErr?.erro ?? 'Usuário não encontrado ou dados inválidos.',
+          message:
+            parsedErr?.erro ??
+            'Token ausente/inválido (401) ou usuário não encontrado.',
           payloadText: formatted,
           ok: false,
         });
         return;
       }
 
+      setPutSenha('');
       await onDatabaseMutated();
       setLastResult({
         method: 'PUT',
@@ -240,8 +349,14 @@ export default function UsuarioCrudForms({
     setIsDeleting(true);
 
     try {
+      const headers: Record<string, string> = {};
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
       const response = await fetch(url, {
         method: 'DELETE',
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
       });
 
       const rawText = await response.text();
@@ -265,7 +380,9 @@ export default function UsuarioCrudForms({
           method: 'DELETE',
           url,
           status: response.status,
-          message: parsedErr?.erro ?? 'Usuário não encontrado.',
+          message:
+            parsedErr?.erro ??
+            'Token ausente/inválido (401) ou usuário não encontrado.',
           payloadText: formatted,
           ok: false,
         });
@@ -315,13 +432,13 @@ export default function UsuarioCrudForms({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-medium text-[#64748B]">
-            UsuariosController · POST, PUT e DELETE em /api/usuarios
+            UsuariosController · Login JWT, Cadastrar, Atualizar [Authorize] e Deletar [Authorize]
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[#0F172A] text-balance">
-            Formulários de Manipulação de Usuários
+            Formulários de Usuários e Autenticação JWT
           </h1>
           <p className="mt-1 text-sm text-[#475569]">
-            Cadastre, atualize ou remova usuários diretamente pelos formulários ou exporte a coleção para o Insomnia e Postman.
+            Gere o token Bearer via Login, cadastre usuários e execute operações protegidas por [Authorize] ou exporte a coleção para Insomnia e Postman.
           </p>
         </div>
 
@@ -380,14 +497,158 @@ export default function UsuarioCrudForms({
         </div>
       )}
 
+      {/* JWT Login Section (POST /api/usuarios -> Post(Usuario)) */}
+      <section className="rounded-lg border border-[#E2E8F0] bg-white">
+        <div className="flex flex-col gap-2 border-b border-[#E2E8F0] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs font-semibold text-[#1D4ED8]">
+                POST /api/usuarios
+              </span>
+              <span aria-hidden="true" className="text-[#CBD5E1]">
+                ·
+              </span>
+              <span className="font-mono text-xs text-[#64748B]">
+                Post(Usuario usuario) — Login JWT
+              </span>
+            </div>
+            <h2 className="mt-1 text-base font-semibold text-[#0F172A]">
+              Autenticar Usuário e Obter Token Bearer
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs">
+            <KeyRound className="h-4 w-4 text-[#2563EB] shrink-0" />
+            {authToken ? (
+              <span className="font-medium text-[#16A34A]">
+                Token ativo ({authEmail ?? 'autenticado'})
+              </span>
+            ) : (
+              <span className="text-[#64748B]">
+                Sem token ativo (PUT e DELETE retornarão 401)
+              </span>
+            )}
+          </div>
+        </div>
+
+        <form onSubmit={handleLoginSubmit} className="space-y-4 p-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end">
+            <div>
+              <label
+                htmlFor="login-user-email"
+                className="mb-1.5 block text-xs font-medium text-[#334155]"
+              >
+                Email
+              </label>
+              <input
+                id="login-user-email"
+                type="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                placeholder="email@sp.br"
+                className="w-full rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="login-user-senha"
+                className="mb-1.5 block text-xs font-medium text-[#334155]"
+              >
+                Senha
+              </label>
+              <div className="relative">
+                <input
+                  id="login-user-senha"
+                  type={showLoginSenha ? 'text' : 'password'}
+                  value={loginSenha}
+                  onChange={(e) => setLoginSenha(e.target.value)}
+                  placeholder="1234"
+                  className="w-full rounded-md border border-[#CBD5E1] bg-white py-2 pl-3 pr-9 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none"
+                />
+                <button
+                  type="button"
+                  aria-label="Alternar visibilidade da senha de login"
+                  onClick={() => setShowLoginSenha((prev) => !prev)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#0F172A]"
+                >
+                  {showLoginSenha ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={isLoggingIn}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-[#2563EB] px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#1D4ED8] disabled:opacity-60"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span>{isLoggingIn ? 'Autenticando...' : 'Gerar Token JWT'}</span>
+              </button>
+              {authToken && (
+                <button
+                  type="button"
+                  onClick={() => onAuthChange(null, null)}
+                  className="rounded-md border border-[#CBD5E1] bg-white px-3 py-2.5 text-xs font-medium text-[#475569] hover:bg-[#F8FAFC] whitespace-nowrap"
+                >
+                  Limpar Token
+                </button>
+              )}
+            </div>
+          </div>
+
+          {loginError && (
+            <div className="flex items-center gap-2 text-xs font-medium text-[#DC2626]">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              <span>{loginError}</span>
+            </div>
+          )}
+
+          {authToken && (
+            <div className="flex flex-col gap-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-medium text-[#64748B]">
+                  Bearer Token em memória (pronto para PUT/DELETE e Insomnia):
+                </p>
+                <p className="mt-0.5 truncate font-mono text-xs text-[#0F172A]">
+                  {authToken}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyToken}
+                className="inline-flex items-center gap-1.5 rounded-md border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-medium text-[#0F172A] hover:bg-[#F1F5F9] whitespace-nowrap shrink-0"
+              >
+                {copiedToken ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-[#16A34A]" />
+                    <span>Copiado</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5 text-[#64748B]" />
+                    <span>Copiar Token</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </form>
+      </section>
+
       {/* Three CRUD Form Panels */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        {/* 1. POST Form */}
+        {/* 1. POST Cadastrar Form */}
         <section className="flex flex-col rounded-lg border border-[#E2E8F0] bg-white">
           <div className="border-b border-[#E2E8F0] px-5 py-4">
             <div className="flex items-center justify-between">
               <span className="font-mono text-xs font-semibold text-[#1D4ED8]">
-                POST /api/usuarios
+                POST /api/usuarios/cadastrar
               </span>
               <span className="font-mono text-xs text-[#64748B]">
                 Cadastrar()
@@ -473,7 +734,7 @@ export default function UsuarioCrudForms({
           </form>
         </section>
 
-        {/* 2. PUT Form */}
+        {/* 2. PUT Form [Authorize] */}
         <section className="flex flex-col rounded-lg border border-[#E2E8F0] bg-white">
           <div className="border-b border-[#E2E8F0] px-5 py-4">
             <div className="flex items-center justify-between">
@@ -481,14 +742,14 @@ export default function UsuarioCrudForms({
                 PUT /api/usuarios/&#123;id&#125;
               </span>
               <span className="font-mono text-xs text-[#64748B]">
-                Atualizar()
+                [Authorize] Atualizar()
               </span>
             </div>
             <h2 className="mt-1 text-base font-semibold text-[#0F172A]">
               Atualizar Usuário Existente
             </h2>
             <p className="mt-0.5 text-xs text-[#64748B]">
-              Selecione um Id para alterar Email e Senha (retorna 204).
+              Requer token Bearer JWT. Retorna 204 No Content ou 401 Unauthorized.
             </p>
           </div>
 
@@ -497,6 +758,13 @@ export default function UsuarioCrudForms({
             className="flex flex-1 flex-col justify-between space-y-4 p-5"
           >
             <div className="space-y-4">
+              {!authToken && (
+                <div className="flex items-center gap-2 rounded-md border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-xs text-[#92400E]">
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  <span>Sem token ativo: o envio retornará 401 Unauthorized.</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label
@@ -565,7 +833,7 @@ export default function UsuarioCrudForms({
                   htmlFor="put-user-senha"
                   className="mb-1.5 block text-xs font-medium text-[#334155]"
                 >
-                  Senha
+                  Nova Senha (opcional)
                 </label>
                 <div className="relative">
                   <input
@@ -573,7 +841,7 @@ export default function UsuarioCrudForms({
                     type={showPutSenha ? 'text' : 'password'}
                     value={putSenha}
                     onChange={(e) => setPutSenha(e.target.value)}
-                    placeholder="Ex.: 4321"
+                    placeholder="Deixe vazio para manter a atual"
                     className="w-full rounded-md border border-[#CBD5E1] bg-white py-2 pl-3 pr-9 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none"
                   />
                   <button
@@ -610,7 +878,7 @@ export default function UsuarioCrudForms({
           </form>
         </section>
 
-        {/* 3. DELETE Form */}
+        {/* 3. DELETE Form [Authorize] */}
         <section className="flex flex-col rounded-lg border border-[#E2E8F0] bg-white">
           <div className="border-b border-[#E2E8F0] px-5 py-4">
             <div className="flex items-center justify-between">
@@ -618,14 +886,14 @@ export default function UsuarioCrudForms({
                 DELETE /api/usuarios/&#123;id&#125;
               </span>
               <span className="font-mono text-xs text-[#64748B]">
-                Deletar()
+                [Authorize] Deletar()
               </span>
             </div>
             <h2 className="mt-1 text-base font-semibold text-[#0F172A]">
               Remover Usuário
             </h2>
             <p className="mt-0.5 text-xs text-[#64748B]">
-              Remove o usuário pelo Id e retorna 204 No Content ou 404.
+              Requer token Bearer JWT. Retorna 204 No Content, 401 ou 404.
             </p>
           </div>
 
@@ -634,6 +902,13 @@ export default function UsuarioCrudForms({
             className="flex flex-1 flex-col justify-between space-y-4 p-5"
           >
             <div className="space-y-4">
+              {!authToken && (
+                <div className="flex items-center gap-2 rounded-md border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-xs text-[#92400E]">
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  <span>Sem token ativo: o envio retornará 401 Unauthorized.</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label
